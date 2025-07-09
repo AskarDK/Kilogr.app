@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Подтверждение анализа</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen py-12 px-4">
+
+<div class="max-w-xl mx-auto bg-white rounded-xl shadow p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">📋 Подтверждение анализа</h1>
+    <p class="text-gray-600 mb-6">Мы распознали следующие показатели. Пожалуйста, подтвердите перед сохранением:</p>
+
+    <form method="POST" action="/confirm_analysis" class="space-y-4">
+        {% for key, value in data.items() %}
+            {% if key not in ['analysis'] %}
+                <div class="border rounded p-3 bg-gray-100">
+                    <label class="block text-sm text-gray-500">{{ key.replace('_', ' ').title() }}</label>
+                    <input type="text" name="{{ key }}" value="{{ value }}" readonly class="w-full bg-gray-50 border-none text-lg font-medium">
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        {% if data.analysis %}
+        <div class="p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700 rounded">
+            <h2 class="text-lg font-semibold mb-1">💬 Анализ от ИИ:</h2>
+            <p class="text-sm whitespace-pre-line">{{ data.analysis }}</p>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 mt-4">✅ Сохранить в профиль</button>
+        <a href="/profile" class="block text-center text-sm text-gray-500 mt-2 hover:underline">↩️ Отменить</a>
+    </form>
+</div>
+
+</body>
+</html>

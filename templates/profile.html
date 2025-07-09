@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto px-4 py-10 space-y-8">
+
+  <!-- Заголовок + Telegram -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div class="space-y-2">
+      <h1 class="text-3xl font-bold text-gray-800">👤 Профиль участника</h1>
+
+      <!-- Telegram блок -->
+      <div class="relative group">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 pr-24 shadow-sm transition group-hover:shadow-lg">
+          <p class="text-sm text-blue-800">
+            📲 <strong>Подключите Telegram-бот</strong> к вашему профилю,<br>
+            чтобы всегда быть в курсе анализа и диеты прямо в мессенджере.
+          </p>
+        </div>
+        <a href="https://t.me/@DietFor35MinuteBot" target="_blank"
+           class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 px-4 py-2 bg-[#229ED9] text-white rounded-md text-base font-medium hover:bg-[#1d90c8] transition shadow">
+          <i class="bi bi-telegram text-xl"></i>
+          Бот
+        </a>
+      </div>
+    </div>
+
+    <a href="/logout" class="text-red-600 hover:text-red-800 transition">Выйти</a>
+  </div>
+
+  <!-- Основной блок -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+    <!-- Левая панель -->
+    <div class="flex flex-col items-center md:items-start space-y-4">
+      <img src="https://www.svgrepo.com/show/452070/user-avatar.svg"
+           alt="Avatar"
+           class="w-28 h-28 rounded-full border-4 border-blue-500 shadow-md">
+      <h2 class="text-lg font-semibold">{{ user.name }}</h2>
+      <p class="text-sm text-gray-500">{{ user.email }}</p>
+
+      <!-- Анализ таргет -->
+      <form action="/upload_analysis" method="POST" enctype="multipart/form-data"
+            class="w-full space-y-2">
+        <label class="text-sm text-gray-600">Загрузить анализ тела</label>
+        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
+               class="w-full text-sm p-2 border rounded focus:ring focus:ring-blue-200">
+        <button type="submit"
+                class="w-full py-2 bg-blue-600 text-white font-medium rounded shadow hover:bg-blue-700 transition">
+          Загрузить
+        </button>
+        <div id="loading" class="hidden text-xs text-gray-400 text-center">
+          Обрабатываем файл через AI...
+        </div>
+      </form>
+    </div>
+
+    <!-- Показатели тела и рацион -->
+    <div class="md:col-span-2 space-y-8">
+
+      <!-- Показатели -->
+      <div class="bg-gray-50 p-6 rounded-xl shadow">
+        <h3 class="text-xl font-semibold mb-4">📊 Показатели тела</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {% for label, value in {
+            'Рост': user.height,
+            'Вес': user.weight,
+            'Мышцы': user.muscle_mass,
+            'Жир': user.fat_mass,
+            'Метаболизм': user.metabolism,
+            'ИМТ': user.bmi
+          }.items() %}
+          <div class="flex flex-col items-center bg-white p-4 rounded-lg shadow hover:shadow-lg transition">
+            <span class="text-gray-400 text-sm">{{ label }}</span>
+            <span class="text-lg font-semibold">{{ value or 'n/a' }}</span>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if user.analysis_comment %}
+        <div class="mt-6 bg-blue-100 border border-blue-300 p-4 rounded text-sm text-blue-800">
+          💬 <strong>AI-комментарий:</strong> {{ user.analysis_comment }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Рацион -->
+      <div class="bg-gray-50 p-6 rounded-xl shadow">
+        <h3 class="text-xl font-semibold mb-4">📈 Ваш рацион</h3>
+
+        {% if diet %}
+          <a href="/diet" class="block transform transition duration-300 hover:scale-[1.015] hover:shadow-xl active:scale-95">
+            <div class="bg-white rounded-xl shadow p-4">
+              <div class="mb-2 text-sm text-gray-500">Рацион за {{ diet.date.strftime('%d.%m.%Y') }}</div>
+              <ul class="list-disc list-inside text-gray-800 text-sm space-y-2">
+                {% for meal_name, meal_items in {
+                  'Завтрак': breakfast,
+                  'Обед': lunch,
+                  'Ужин': dinner,
+                  'Перекус': snack
+                }.items() %}
+                <li><strong>{{ meal_name }}:</strong><br>
+                  {% for itm in meal_items %}
+                    {{ itm.name }} — <span class="text-green-600">{{ itm.grams }} г</span>,
+                    <span class="text-blue-600">{{ itm.kcal }} ккал</span><br>
+                  {% endfor %}
+                </li>
+                {% endfor %}
+              </ul>
+              <div class="mt-4 text-right text-xs italic text-gray-400">Нажмите, чтобы посмотреть подробнее</div>
+            </div>
+          </a>
+          <form action="/reset_diet" method="POST" class="text-right mt-4">
+            <button type="submit"
+                    class="text-red-600 hover:text-red-800 transition underline text-sm">
+              Перегенерировать диету
+            </button>
+          </form>
+        {% elif user.height and user.weight and user.muscle_mass %}
+          <form id="dietForm" class="space-y-6">
+
+            <div>
+              <label class="block text-sm font-medium mb-2">Комментарий / предпочтения</label>
+              <textarea name="preferences" rows="2"
+                        class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></textarea>
+            </div>
+
+            <!-- Цель -->
+            <div>
+              <label class="block text-sm font-medium mb-2">Цель</label>
+              <div class="flex gap-4">
+                {% set goals = [
+                  {'label': 'Набор', 'icon': '💪', 'value': 'muscle', 'color': 'green'},
+                  {'label': 'Похудение', 'icon': '🔥', 'value': 'loss', 'color': 'red'},
+                  {'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain', 'color': 'blue'}
+                ] %}
+                {% for g in goals %}
+                  <div class="goal-card flex flex-col items-center p-4 rounded-lg border transition cursor-pointer
+                              hover:shadow-lg peer"
+                       data-value="{{ g.value }}">
+                    <div class="text-3xl">{{ g.icon }}</div>
+                    <div class="mt-2 text-sm">{{ g.label }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="goal" id="goalInput">
+            </div>
+
+            <!-- Пол -->
+            <div>
+              <label class="block text-sm font-medium mb-2">Пол</label>
+              <div class="flex gap-4">
+                {% set genders = [
+                  {'label': 'Мужской', 'icon': '♂️', 'value': 'male', 'color': 'blue'},
+                  {'label': 'Женский', 'icon': '♀️', 'value': 'female', 'color': 'pink'}
+                ] %}
+                {% for g in genders %}
+                  <div class="gender-card flex items-center justify-center p-4 rounded-lg border transition cursor-pointer peer"
+                       data-value="{{ g.value }}">
+                    <div class="text-xl mr-2">{{ g.icon }}</div>
+                    <div class="text-sm">{{ g.label }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="gender" id="genderInput">
+            </div>
+
+            <button type="button"
+                    onclick="startDietGeneration()"
+                    class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+              Сгенерировать диету
+            </button>
+          </form>
+        {% else %}
+          <p class="text-sm text-gray-500">Пожалуйста, загрузите анализ тела для генерации диеты.</p>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Прелоадер -->
+<div id="dietLoader" class="fixed inset-0 bg-white/80 flex items-center justify-center z-50 hidden">
+  <svg class="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+       viewBox="0 0 24 24">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8v8z"></path>
+  </svg>
+  <p class="mt-2 text-gray-700">Генерируем диету по твоим данным...</p>
+</div>
+
+<script>
+  // Выбор цели
+  document.querySelectorAll('.goal-card').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('ring-4', 'ring-offset-2', 'ring-green-500'))
+      el.classList.add('ring-4', 'ring-offset-2', 'ring-green-500', 'shadow-lg');
+      document.getElementById('goalInput').value = el.dataset.value;
+    });
+  });
+
+  // Выбор пола
+  document.querySelectorAll('.gender-card').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.gender-card').forEach(c => c.classList.remove('ring-4', 'ring-offset-2', 'ring-blue-500'))
+      el.classList.add('ring-4', 'ring-offset-2', 'ring-blue-500', 'shadow-lg');
+      document.getElementById('genderInput').value = el.dataset.value;
+    });
+  });
+
+  // Генерация
+  function startDietGeneration() {
+    const goal = document.getElementById('goalInput').value;
+    const gender = document.getElementById('genderInput').value;
+    const preferences = document.querySelector('textarea[name="preferences"]').value;
+    if (!goal || !gender) return alert('Выбери цель и пол.');
+
+    const loader = document.getElementById('dietLoader');
+    loader.classList.remove('hidden');
+
+    const params = new URLSearchParams({ goal, gender, preferences });
+    fetch('/generate_diet?' + params)
+      .then(res => res.json())
+      .then(data => {
+        loader.classList.add('hidden');
+        if (data.redirect) window.location = data.redirect;
+        else alert('Ошибка: ' + JSON.stringify(data));
+      })
+      .catch(err => {
+        loader.classList.add('hidden');
+        alert('Сетевая ошибка: ' + err.message);
+      });
+  }
+</script>
+
+{% endblock %}
