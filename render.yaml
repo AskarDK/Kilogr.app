@@ -1,19 +1,11 @@
 services:
   - type: web
-    name: flask-app
+    name: my-web-app
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python app.py"
-    plan: free
-    envVars:
-      - key: FLASK_APP
-        value: "app.py"
-      - key: FLASK_ENV
-        value: "production"
-
+    startCommand: "gunicorn main:app"
   - type: worker
     name: telegram-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python telegram_bot.py"
-    plan: free
