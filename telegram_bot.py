@@ -17,6 +17,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import date
+import time
 
 # Загрузка .env
 load_dotenv()
@@ -24,6 +25,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+time.sleep(10)  # Подождать 10 секунд
 
 TIMEZONE = "Asia/Almaty"
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")

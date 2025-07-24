@@ -15,10 +15,6 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 import re
 from sqlalchemy import func
-from telegram_bot import run_bot  # Импортируем функцию для запуска бота
-import threading
-
-
 
 
 load_dotenv()
@@ -922,7 +918,4 @@ def registered_chats():
     return jsonify({"chat_ids": chat_ids})
 
 if __name__ == '__main__':
-    telegram_thread = threading.Thread(target=run_bot)
-    telegram_thread.start()
-
     app.run(debug=True)
