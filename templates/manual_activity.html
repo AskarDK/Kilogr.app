@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-md mx-auto py-10">
+  <h1 class="text-xl font-bold mb-6 text-center">🚶 Ввод активности вручную</h1>
+  <form method="POST" class="space-y-4 bg-white p-6 rounded-xl shadow">
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700">Шаги</label>
+      <input type="number" name="steps" class="w-full border p-2 rounded" required>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700">Активные калории</label>
+      <input type="number" name="active_kcal" class="w-full border p-2 rounded">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700">Калории в покое</label>
+      <input type="number" name="resting_kcal" class="w-full border p-2 rounded">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700">Пульс (средний)</label>
+      <input type="number" name="heart_rate_avg" class="w-full border p-2 rounded">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700">Дистанция (км)</label>
+      <input type="number" step="0.1" name="distance_km" class="w-full border p-2 rounded">
+    </div>
+
+    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">
+      💾 Сохранить
+    </button>
+  </form>
+</div>
+{% endblock %}

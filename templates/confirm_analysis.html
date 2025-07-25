@@ -1,38 +1,192 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Подтверждение анализа</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <title>Подтверждение анализа тела</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    /* Небольшой helper для раскрывающихся подсказок */
+    document.addEventListener('alpine:init', () => {});
+  </script>
 </head>
-<body class="bg-gray-50 min-h-screen py-12 px-4">
+<body class="bg-gray-100 min-h-screen py-8 px-4">
 
-<div class="max-w-xl mx-auto bg-white rounded-xl shadow p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">📋 Подтверждение анализа</h1>
-    <p class="text-gray-600 mb-6">Мы распознали следующие показатели. Пожалуйста, подтвердите перед сохранением:</p>
+  <div class="max-w-4xl mx-auto">
 
-    <form method="POST" action="/confirm_analysis" class="space-y-4">
-        {% for key, value in data.items() %}
-            {% if key not in ['analysis'] %}
-                <div class="border rounded p-3 bg-gray-100">
-                    <label class="block text-sm text-gray-500">{{ key.replace('_', ' ').title() }}</label>
-                    <input type="text" name="{{ key }}" value="{{ value }}" readonly class="w-full bg-gray-50 border-none text-lg font-medium">
+    <!-- HEADER CARD -->
+    <div
+      class="relative overflow-hidden rounded-2xl shadow-md mb-8
+             bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-[1px]">
+      <div class="bg-white rounded-2xl p-6">
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+          📊 Подтверждение анализа тела
+        </h1>
+        {% if error %}
+          <p class="text-gray-600">Мы не смогли извлечь все данные с изображения.</p>
+        {% else %}
+          <p class="text-gray-600">Проверьте распознанные показатели перед сохранением.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if error %}
+      <!-- ERROR BLOCK -->
+      <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-5 mb-8 text-yellow-800">
+        <h2 class="font-semibold mb-1">⚠️ Недостаточно данных</h2>
+        <p class="text-sm leading-relaxed">{{ error }}</p>
+      </div>
+
+      <!-- FIX / HELP -->
+      <div class="bg-white rounded-xl shadow p-6 mb-8">
+        <h3 class="font-semibold text-gray-800 mb-2">Что делать?</h3>
+        <ol class="list-decimal ml-5 text-sm text-gray-700 space-y-1">
+          <li>Убедитесь, что фото сделано <strong>из приложения / устройства биоимпеданса</strong>.</li>
+          <li>Вся таблица значений должна быть в кадре и читабельна.</li>
+          <li>Повторно загрузите скрин и попробуйте снова.</li>
+          <li>Если данные не совпадают или показатели отсутствуют — свяжитесь с тренером.</li>
+        </ol>
+        <a href="/profile"
+           class="inline-block mt-4 text-blue-600 hover:text-blue-700 hover:underline">
+          ← Вернуться в профиль
+        </a>
+      </div>
+
+    {% elif data %}
+      <!-- MAIN CONFIRM CARD -->
+      <form method="POST" action="/confirm_analysis" class="space-y-10">
+
+        <!-- IMPORTANT NOTICE -->
+        <div class="bg-white rounded-xl shadow p-6 mb-4">
+          <div class="flex items-start gap-3">
+            <div class="text-2xl leading-none">🔒</div>
+            <div>
+              <h2 class="font-semibold text-gray-800 mb-1">Фиксация данных</h2>
+              <p class="text-sm text-gray-700 leading-relaxed">
+                Результаты сохраняются <strong>строго по данным, считанным со скриншота из вашего приложения биоимпеданса</strong>.
+                Изменить значения вручную нельзя. Это сделано для честной динамики и корректных рекомендаций.
+              </p>
+              <p class="text-sm text-gray-700 leading-relaxed mt-2">
+                Если вы считаете, что данные распознаны неверно или не соответствуют приложению —
+                <strong>свяжитесь с вашим тренером</strong> до сохранения.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAM GROUPS -->
+        {% set labels = {
+          "height": ("Рост", "см", "📏"),
+          "weight": ("Вес", "кг", "⚖️"),
+          "bmi": ("ИМТ", "", "📐"),
+          "fat_mass": ("Жировая масса", "кг", "🧈"),
+          "muscle_mass": ("Мышечная масса", "кг", "💪"),
+          "muscle_percentage": ("Процент мышц", "%", "💪"),
+          "body_water": ("Вода в теле", "%", "💧"),
+          "protein_percentage": ("Белок", "%", "🥚"),
+          "bone_mineral_percentage": ("Минералы в костях", "%", "🦴"),
+          "skeletal_muscle_mass": ("Скелетные мышцы", "кг", "🏋️"),
+          "visceral_fat_rating": ("Висцеральный жир", "", "🔥"),
+          "metabolism": ("Базовый обмен", "ккал", "⚡"),
+          "waist_hip_ratio": ("Соотношение талия/бедра", "", "📏"),
+          "body_age": ("Возраст тела", "лет", "🧬"),
+          "fat_free_body_weight": ("Безжировая масса", "кг", "🧱")
+        } %}
+
+        <!-- ОСНОВНОЕ -->
+       <section class="bg-white rounded-xl shadow p-6">
+  <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">🧍 Основные данные</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {% for key in ['height','weight','bmi','body_age'] %}
+      {% if data.get(key) is not none %}
+        {% set label = labels[key][0] %}
+        {% set unit = labels[key][1] %}
+        {% set icon = labels[key][2] %}
+        <div class="bg-gray-50 border rounded-lg p-4">
+          <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
+
+          {% if key == 'height' %}
+            <input type="number" name="height" value="{{ data[key] }}"
+                   class="w-full mt-1 bg-white border-gray-300 text-lg font-semibold text-gray-800 rounded px-3 py-1.5 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   min="50" max="300" step="1" required>
+          {% else %}
+            <div class="text-lg font-bold text-gray-800 mt-1">
+              {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+
+
+        <!-- СОСТАВ ТЕЛА -->
+        <section class="bg-white rounded-xl shadow p-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">🧬 Состав тела</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for key in [
+              'fat_mass','fat_free_body_weight','muscle_mass','muscle_percentage',
+              'skeletal_muscle_mass','body_water','protein_percentage','bone_mineral_percentage'
+            ] %}
+              {% if data.get(key) is not none %}
+                {% set label = labels[key][0] %}
+                {% set unit = labels[key][1] %}
+                {% set icon = labels[key][2] %}
+                <div class="bg-gray-50 border rounded-lg p-4">
+                  <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
+                  <div class="text-lg font-bold text-gray-800 mt-1">
+                    {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
+                  </div>
                 </div>
-            {% endif %}
-        {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </div>
+        </section>
+
+        <!-- МЕТАБОЛИЗМ И РИСК-ФАКТОРЫ -->
+        <section class="bg-white rounded-xl shadow p-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">⚡ Метаболизм и риски</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for key in ['metabolism','visceral_fat_rating','waist_hip_ratio'] %}
+              {% if data.get(key) is not none %}
+                {% set label = labels[key][0] %}
+                {% set unit = labels[key][1] %}
+                {% set icon = labels[key][2] %}
+                <div class="bg-gray-50 border rounded-lg p-4">
+                  <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
+                  <div class="text-lg font-bold text-gray-800 mt-1">
+                    {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </section>
 
         {% if data.analysis %}
-        <div class="p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700 rounded">
-            <h2 class="text-lg font-semibold mb-1">💬 Анализ от ИИ:</h2>
-            <p class="text-sm whitespace-pre-line">{{ data.analysis }}</p>
-        </div>
+          <!-- AI COMMENT -->
+          <section class="bg-blue-50 border-l-4 border-blue-600 p-6 rounded-md">
+            <h3 class="text-lg font-semibold text-blue-700 mb-2">💬 Комментарий от ИИ</h3>
+            <p class="text-sm text-blue-800 whitespace-pre-line leading-relaxed">{{ data.analysis }}</p>
+          </section>
         {% endif %}
 
-        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 mt-4">✅ Сохранить в профиль</button>
-        <a href="/profile" class="block text-center text-sm text-gray-500 mt-2 hover:underline">↩️ Отменить</a>
-    </form>
-</div>
+        <!-- SUBMIT -->
+        <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
+          <a href="/profile"
+             class="sm:w-auto w-full text-center px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
+            ↩️ Отменить
+          </a>
+          <button type="submit"
+                  class="sm:w-auto w-full px-6 py-2 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
+            ✅ Сохранить в профиль
+          </button>
+        </div>
+      </form>
+    {% endif %}
+  </div>
 
 </body>
 </html>
