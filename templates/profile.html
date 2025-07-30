@@ -1,9 +1,100 @@
 {% extends 'base.html' %}
 {% block content %}
+
+<style>
+  /* Общие анимации */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn {
+    from {opacity: 0; transform: scale(0.9);}
+    to {opacity: 1; transform: scale(1);}
+  }
+
+  /* Анимация пульсирующего фона */
+  @keyframes pulse-background {
+    0% { opacity: 0; }
+    50% { opacity: 0.2; }
+    100% { opacity: 0; }
+  }
+  .animate-pulse-background:hover {
+    animation: pulse-background 1.5s infinite;
+  }
+
+  /* Анимации для кнопок */
+  .btn-hover-animate {
+    transition: all 0.3s ease;
+    transform: translateY(0);
+  }
+  .btn-hover-animate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Анимации для карточек */
+  .card-hover-animate {
+    transition: all 0.3s ease;
+  }
+  .card-hover-animate:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Анимация для иконок */
+  .icon-hover-animate {
+    transition: transform 0.3s ease;
+  }
+  .icon-hover-animate:hover {
+    transform: scale(1.1);
+  }
+
+  /* Анимация для вкладок */
+  .tab-hover-animate {
+    transition: all 0.2s ease;
+  }
+  .tab-hover-animate:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  /* Анимация для элементов формы */
+  .form-input-hover {
+    transition: all 0.2s ease;
+  }
+  .form-input-hover:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  /* Анимация для элементов списка */
+  .list-item-hover {
+    transition: all 0.2s ease;
+  }
+  .list-item-hover:hover {
+    background-color: rgba(243, 244, 246, 0.5);
+    transform: translateX(2px);
+  }
+
+  /* Специальная анимация для карточки группы */
+  .group-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .group-card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Анимация для карточек целей/пола */
+  .selection-card {
+    transition: all 0.3s ease;
+  }
+  .selection-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+</style>
 <div class="max-w-7xl mx-auto px-4 py-6">
 
-  <!-- Навигационные вкладки -->
-   <div class="flex border-b mb-6">
+  <div class="flex flex-wrap gap-2 border-b mb-6 overflow-x-auto scrollbar-hide px-1">
     <a href="/profile"
        class="px-4 py-2 font-medium {% if request.path == '/profile' %}border-b-2 border-blue-500 text-blue-600{% else %}text-gray-500 hover:text-gray-700{% endif %}">
       Профиль
@@ -16,13 +107,15 @@
        class="px-4 py-2 font-medium {% if request.path == '/activity' %}border-b-2 border-blue-500 text-blue-600{% else %}text-gray-500 hover:text-gray-700{% endif %}">
       Активность
     </a>
+    <a href="/meals"
+       class="px-4 py-2 font-medium {% if request.path == '/meals' %}border-b-2 border-blue-500 text-blue-600{% else %}text-gray-500 hover:text-gray-700{% endif %}">
+      Приёмы пищи
+    </a>
   </div>
 
   {% if request.path == '/profile' %}
-  <!-- Контент профиля -->
   <div class="space-y-6">
 
-    <!-- Telegram интеграция -->
     {% if user.telegram_chat_id %}
     <div class="flex justify-between items-center bg-green-50 border border-green-200 p-5 rounded-xl shadow-sm">
       <div class="text-green-800 text-sm">
@@ -45,123 +138,163 @@
 
     <div class="grid md:grid-cols-2 gap-6 items-start">
 
-      <!-- Левая колонка (профиль + загрузка) -->
       <div class="space-y-6">
         <div class="text-center bg-white p-6 rounded-xl shadow">
-          <img src="https://www.svgrepo.com/show/452070/user-avatar.svg"
-               alt="Avatar"
-               class="w-28 h-28 mx-auto rounded-full border-4 border-blue-500 shadow-md mb-4">
+          {% if user.avatar %}
+            <img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}"
+                 alt="Avatar"
+                 class="w-28 h-28 mx-auto rounded-full border-4 border-blue-500 shadow-md mb-4 object-cover">
+          {% else %}
+            <img src="https://www.svgrepo.com/show/452070/user-avatar.svg"
+                 alt="Default Avatar"
+                 class="w-28 h-28 mx-auto rounded-full border-4 border-blue-500 shadow-md mb-4">
+          {% endif %}
           <h2 class="text-lg font-semibold">{{ user.name }}</h2>
           <p class="text-sm text-gray-500">{{ user.email }}</p>
         </div>
 
-<!-- Анализ тела: современный UI -->
-<div class="bg-white rounded-xl shadow p-4 transition-all duration-300 group" id="analysisCard">
-  {% if user.height and user.weight %}
-    <button onclick="toggleAnalysisForm()" type="button"
-            class="w-full flex items-center justify-between p-4 rounded-lg border border-blue-100 bg-blue-50 hover:bg-blue-100 text-sm font-medium text-blue-700 transition">
-      <div class="flex items-center gap-3">
-        <span class="text-xl">📥</span>
-        <span>Сделать новый замер</span>
+        <div class="group-card-container relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300">
+          {% if user_joined_group %}
+            <a href="{{ url_for('group_detail', group_id=user_joined_group.id) }}"
+               class="block p-4 text-white text-center font-medium relative z-10
+                      flex flex-col items-center justify-center min-h-[100px] text-lg overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-700 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse-background"></div>
+
+                <span class="z-10 relative flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.125-.935c.515-.233 1.053-.474 1.55-.776v-.602c0-5.75-3.007-10.75-7.5-14.072A9.262 9.262 0 0 0 15 1.827V19.128z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 10.25a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 18.25a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z" />
+                    </svg>
+                    Моя группа: {{ user_joined_group.name }}
+                </span>
+                {% if user_joined_group.description %}
+                    <span class="z-10 relative text-sm opacity-90 mt-1">{{ user_joined_group.description }}</span>
+                {% endif %}
+                <span class="z-10 relative text-xs opacity-70 mt-3 border border-white/30 px-3 py-1 rounded-full backdrop-blur-sm">Перейти в группу</span>
+            </a>
+          {% else %}
+            <a href="{{ url_for('groups_list') }}"
+               class="block p-4 text-gray-800 text-center font-medium relative z-10
+                      flex flex-col items-center justify-center min-h-[100px] text-lg overflow-hidden">
+                <div class="absolute inset-0 bg-gray-100 opacity-90 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-200 to-gray-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse-background"></div>
+
+                <span class="z-10 relative flex items-center gap-2">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-blue-600">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.75V6.25c0-1.036-.84-1.875-1.875-1.875h-9.25c-1.036 0-1.875.84-1.875 1.875v12.5c0 1.036.84 1.875 1.875 1.875h9.25c1.036 0 1.875-.84 1.875-1.875zm-6-8.25c0-.414-.336-.75-.75-.75H7.5c-.414 0-.75.336-.75.75s.336.75.75.75h3.75c.414 0 .75-.336.75-.75z" />
+                    </svg>
+                    Вы не состоите в группе
+                </span>
+                <span class="z-10 relative text-sm opacity-90 mt-1 text-gray-600">Присоединяйтесь или создайте свою!</span>
+                <span class="z-10 relative text-xs opacity-70 mt-3 border border-gray-400/30 px-3 py-1 rounded-full backdrop-blur-sm">Вступить в группу</span>
+            </a>
+          {% endif %}
+        </div>
+
+
+        <div class="bg-white rounded-xl shadow p-4 transition-all duration-300 group" id="analysisCard">
+          {% if user.height and user.weight %}
+            <button onclick="toggleAnalysisForm()" type="button"
+                    class="w-full flex items-center justify-between p-4 rounded-lg border border-blue-100 bg-blue-50 hover:bg-blue-100 text-sm font-medium text-blue-700 transition">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">📥</span>
+                <span>Сделать новый замер</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:rotate-180"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+
+            <form id="uploadForm" action="/upload_analysis" method="POST" enctype="multipart/form-data"
+                  class="hidden mt-4 border-t pt-4 space-y-4 animate-fade-in">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Загрузите фото или PDF анализа</label>
+                <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
+                       class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
+              </div>
+              <button type="submit"
+                      class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
+                🔄 Отправить
+              </button>
+              <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
+            </form>
+
+          {% else %}
+            <form action="/upload_analysis" method="POST" enctype="multipart/form-data" class="space-y-4">
+              <label class="block text-sm text-gray-600 mb-1">Загрузить анализ тела</label>
+              <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
+                     class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
+              <button type="submit"
+                      class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
+                Загрузить
+              </button>
+              <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
+            </form>
+          {% endif %}
+        </div>
       </div>
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:rotate-180"
-           fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M19 9l-7 7-7-7"/>
-      </svg>
-    </button>
 
-    <form id="uploadForm" action="/upload_analysis" method="POST" enctype="multipart/form-data"
-          class="hidden mt-4 border-t pt-4 space-y-4 animate-fade-in">
-      <div>
-        <label class="block text-sm text-gray-600 mb-1">Загрузите фото или PDF анализа</label>
-        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
-               class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
-      </div>
-      <button type="submit"
-              class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
-        🔄 Отправить
-      </button>
-      <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
-    </form>
-
-  {% else %}
-    <form action="/upload_analysis" method="POST" enctype="multipart/form-data" class="space-y-4">
-      <label class="block text-sm text-gray-600 mb-1">Загрузить анализ тела</label>
-      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
-             class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
-      <button type="submit"
-              class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
-        Загрузить
-      </button>
-      <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
-    </form>
-  {% endif %}
-</div>
-
-
-      </div>
-
-      <!-- Правая колонка (данные тела + диета) -->
       <div class="space-y-6">
 
-        <!-- Показатели тела -->
         <div class="bg-white p-6 rounded-xl shadow space-y-6">
           <h3 class="text-xl font-semibold text-gray-800">📊 Показатели тела</h3>
-         {# 1. Определяем метрики и флаг: True если рост вверх — это хорошо #}
-{% set metrics = [
-  ('Рост',        'height',              '📏', 'см',  True),
-  ('Вес',         'weight',              '⚖️', 'кг',  False),
-  ('Мышцы',       'muscle_mass',         '💪', 'кг',  True),
-  ('Жир',         'fat_mass',            '🧈', 'кг',  False),
-  ('Вода',        'body_water',          '💧', '%',  True),
-  ('Метаболизм',  'metabolism',          '⚡', 'ккал',True),
-  ('Белок',       'protein_percentage',  '🥚', '%',  True),
-  ('Висц. жир',   'visceral_fat_rating', '🔥', '',   False),
-  ('ИМТ',         'bmi',                 '📐', '',   False)
-] %}
+          {# 1. Определяем метрики и флаг: True если рост вверх — это хорошо #}
+          {% set metrics = [
+            ('Рост',        'height',              '📏', 'см',  True),
+            ('Вес',         'weight',              '⚖️', 'кг',  False),
+            ('Мышцы',       'muscle_mass',         '💪', 'кг',  True),
+            ('Жир',         'fat_mass',            '🧈', 'кг',  False),
+            ('Вода',        'body_water',          '💧', '%',  True),
+            ('Метаболизм',  'metabolism',          '⚡', 'ккал',True),
+            ('Белок',       'protein_percentage',  '🥚', '%',  True),
+            ('Висц. жир',   'visceral_fat_rating', '🔥', '',   False),
+            ('ИМТ',         'bmi',                 '📐', '',   False)
+          ] %}
 
-<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-  {% for label, field, icon, unit, good_up in metrics %}{% set cur = latest_analysis[field] if latest_analysis else none %}
-{% set prev = previous_analysis[field] if previous_analysis else none %}
-{% if cur is not none and prev is not none %}
-  {% set cur = cur|float %}
-  {% set prev = prev|float %}
-  {% set diff = cur - prev %}
-  {% set pct = (diff / prev * 100) if prev != 0 else none %}
-  {% if diff > 0 %}
-    {% set arrow = '↑' %}
-    {% set is_good = good_up %}
-  {% else %}
-    {% set arrow = '↓' %}
-    {% set is_good = not good_up %}
-  {% endif %}
-{% else %}
-  {% set diff = none %}
-{% endif %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {% for label, field, icon, unit, good_up in metrics %}
+              {% set cur = latest_analysis[field] if latest_analysis else none %}
+              {% set prev = previous_analysis[field] if previous_analysis else none %}
+              {% if cur is not none and prev is not none %}
+                {% set cur = cur|float %}
+                {% set prev = prev|float %}
+                {% set diff = cur - prev %}
+                {% set pct = (diff / prev * 100) if prev != 0 else none %}
+                {% if diff > 0 %}
+                  {% set arrow = '↑' %}
+                  {% set is_good = good_up %}
+                {% else %}
+                  {% set arrow = '↓' %}
+                  {% set is_good = not good_up %}
+                {% endif %}
+              {% else %}
+                {% set diff = none %}
+              {% endif %}
 
+              <div class="bg-gray-50 p-4 rounded-lg shadow flex flex-col justify-between text-center">
+                <div class="text-sm text-gray-500 mb-1 flex items-center justify-center gap-1">
+                  <span>{{ icon }}</span> {{ label }}
+                </div>
+                <div class="text-lg font-semibold text-gray-800 mt-auto">
+                  {{ cur or 'n/a' }}{% if cur and unit %}<span class="text-sm text-gray-500">{{ unit }}</span>{% endif %}
+                </div>
 
-    <div class="bg-gray-50 p-4 rounded-lg shadow flex flex-col justify-between text-center">
-      <div class="text-sm text-gray-500 mb-1 flex items-center justify-center gap-1">
-        <span>{{ icon }}</span> {{ label }}
-      </div>
-      <div class="text-lg font-semibold text-gray-800 mt-auto">
-        {{ cur or 'n/a' }}{% if cur and unit %}<span class="text-sm text-gray-500">{{ unit }}</span>{% endif %}
-      </div>
-
-      {% if diff is not none %}
-        <div>
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-                       {% if is_good %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-            {{ arrow }} {{ diff|abs|round(1) }}{{ unit }}
-            {% if pct is not none %} ({{ pct|abs|round(1) }}%){% endif %}
-          </span>
-        </div>
-      {% endif %}
-    </div>
-  {% endfor %}
-</div>
-
+                {% if diff is not none %}
+                  <div>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
+                                 {% if is_good %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                      {{ arrow }} {{ diff|abs|round(1) }}{{ unit }}
+                      {% if pct is not none %} ({{ pct|abs|round(1) }}%){% endif %}
+                    </span>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
 
           {% if user.analysis_comment %}
           <div class="bg-blue-50 border border-blue-200 p-4 rounded text-sm text-blue-800">
@@ -170,65 +303,65 @@
           {% endif %}
         </div>
 
-        <!-- Диета -->
         <div class="bg-white p-6 rounded-xl shadow space-y-6">
           <h3 class="text-xl font-semibold text-gray-800">📈 Ваш рацион</h3>
 
           {% if diet %}
             <a href="/diet" class="block transform hover:scale-[1.01] transition duration-200">
-  <div class="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-6 rounded-2xl shadow-lg space-y-4">
-    <div class="flex justify-between items-center">
-      <div class="text-sm text-blue-800 font-medium">
-        🗓️ Рацион за {{ diet.date.strftime('%d.%m.%Y') }}
-      </div>
-      <div class="text-xs text-gray-500 italic">Нажмите для подробностей</div>
-    </div>
+              <div class="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-6 rounded-2xl shadow-lg space-y-4">
+                <div class="flex justify-between items-center">
+                  <div class="text-sm text-blue-800 font-medium">
+                    🗓️ Рацион за {{ diet.date.strftime('%d.%m.%Y') }}
+                  </div>
+                  <div class="text-xs text-gray-500 italic">Нажмите для подробностей</div>
+                </div>
 
-    {% for meal_name, meal_items in {
-      '🍳 Завтрак': breakfast,
-      '🍲 Обед': lunch,
-      '🍝 Ужин': dinner,
-      '🍎 Перекус': snack
-    }.items() %}
-    <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-      <div class="text-sm font-semibold text-gray-700 mb-2">{{ meal_name }}</div>
-      <ul class="space-y-1 text-sm text-gray-600">
-        {% for itm in meal_items %}
-        <li class="flex justify-between">
-          <span>{{ itm.name }}</span>
-          <span class="text-right text-xs text-gray-500">
-            {{ itm.grams }} г, {{ itm.kcal }} ккал
-          </span>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endfor %}
+                {% for meal_name, meal_items in {
+                  '🍳 Завтрак': breakfast,
+                  '🍲 Обед': lunch,
+                  '🍝 Ужин': dinner,
+                  '🍎 Перекус': snack
+                }.items() %}
+                  <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                    <div class="text-sm font-semibold text-gray-700 mb-2">{{ meal_name }}</div>
+                    <ul class="space-y-1 text-sm text-gray-600">
+                      {% for itm in meal_items %}
+                        <li class="flex justify-between">
+                          <span>{{ itm.name }}</span>
+                          <span class="text-right text-xs text-gray-500">
+                            {{ itm.grams }} г, {{ itm.kcal }} ккал
+                          </span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endfor %}
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-center text-gray-700 mt-2">
-      <div class="bg-green-50 py-2 rounded-lg">
-        <div class="text-xs text-green-800">Калории</div>
-        <div class="font-bold text-green-700">{{ diet.total_kcal }} ккал</div>
-      </div>
-      <div class="bg-blue-50 py-2 rounded-lg">
-        <div class="text-xs text-blue-800">Белки</div>
-        <div class="font-bold text-blue-700">{{ diet.protein }} г</div>
-      </div>
-      <div class="bg-yellow-50 py-2 rounded-lg">
-        <div class="text-xs text-yellow-800">Жиры</div>
-        <div class="font-bold text-yellow-700">{{ diet.fat }} г</div>
-      </div>
-      <div class="bg-purple-50 py-2 rounded-lg">
-        <div class="text-xs text-purple-800">Углеводы</div>
-        <div class="font-bold text-purple-700">{{ diet.carbs }} г</div>
-      </div>
-    </div>
-  </div>
-</a>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-center text-gray-700 mt-2">
+                  <div class="bg-green-50 py-2 rounded-lg">
+                    <div class="text-xs text-green-800">Калории</div>
+                    <div class="font-bold text-green-700">{{ diet.total_kcal }} ккал</div>
+                  </div>
+                  <div class="bg-blue-50 py-2 rounded-lg">
+                    <div class="text-xs text-blue-800">Белки</div>
+                    <div class="font-bold text-blue-700">{{ diet.protein }} г</div>
+                  </div>
+                  <div class="bg-yellow-50 py-2 rounded-lg">
+                    <div class="text-xs text-yellow-800">Жиры</div>
+                    <div class="font-bold text-yellow-700">{{ diet.fat }} г</div>
+                  </div>
+                  <div class="bg-purple-50 py-2 rounded-lg">
+                    <div class="text-xs text-purple-800">Углеводы</div>
+                    <div class="font-bold text-purple-700">{{ diet.carbs }} г</div>
+                  </div>
+                </div>
+              </div>
+            </a>
 
             <form action="/reset_diet" method="POST" class="text-right">
               <button type="submit" class="text-sm text-red-600 underline hover:text-red-800">Перегенерировать диету</button>
             </form>
+
           {% elif user.height and user.weight and user.muscle_mass %}
             <form id="dietForm" class="space-y-6">
               <div>
@@ -237,7 +370,6 @@
                           class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></textarea>
               </div>
 
-              <!-- Цель -->
               <div>
                 <label class="block text-sm font-medium mb-2">Цель</label>
                 <div class="flex gap-4">
@@ -246,17 +378,16 @@
                     {'label': 'Похудение', 'icon': '🔥', 'value': 'loss'},
                     {'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain'}
                   ] %}
-                  <div class="goal-card flex flex-col items-center p-4 rounded-lg border cursor-pointer hover:shadow"
-                       data-value="{{ g.value }}">
-                    <div class="text-2xl">{{ g.icon }}</div>
-                    <div class="text-sm mt-1">{{ g.label }}</div>
-                  </div>
+                    <div class="goal-card flex flex-col items-center p-4 rounded-lg border cursor-pointer hover:shadow"
+                         data-value="{{ g.value }}">
+                      <div class="text-2xl">{{ g.icon }}</div>
+                      <div class="text-sm mt-1">{{ g.label }}</div>
+                    </div>
                   {% endfor %}
                 </div>
                 <input type="hidden" name="goal" id="goalInput">
               </div>
 
-              <!-- Пол -->
               <div>
                 <label class="block text-sm font-medium mb-2">Пол</label>
                 <div class="flex gap-4">
@@ -264,11 +395,11 @@
                     {'label': 'Мужской', 'icon': '♂️', 'value': 'male'},
                     {'label': 'Женский', 'icon': '♀️', 'value': 'female'}
                   ] %}
-                  <div class="gender-card flex items-center justify-center p-4 rounded-lg border cursor-pointer hover:shadow"
-                       data-value="{{ g.value }}">
-                    <div class="text-xl mr-2">{{ g.icon }}</div>
-                    <div class="text-sm">{{ g.label }}</div>
-                  </div>
+                    <div class="gender-card flex items-center justify-center p-4 rounded-lg border cursor-pointer hover:shadow"
+                         data-value="{{ g.value }}">
+                      <div class="text-xl mr-2">{{ g.icon }}</div>
+                      <div class="text-sm">{{ g.label }}</div>
+                    </div>
                   {% endfor %}
                 </div>
                 <input type="hidden" name="gender" id="genderInput">
@@ -286,166 +417,326 @@
 
       </div>
     </div>
-  </div>
 
-   {% elif request.path == '/metrics' %}
-    <!-- Контент таба «Показатели» -->
-    <div class="space-y-6">
+  {% elif request.path == '/metrics' %}
+  <div class="space-y-6">
 
-      <!-- 1) Дефицит калорий -->
-      <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-xl font-semibold mb-4">📈 Дефицит калорий за сегодня</h2>
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h2 class="text-xl font-semibold mb-4">📈 Дефицит калорий за сегодня</h2>
 
-        {% if missing_meals or missing_activity %}
-          <p class="text-gray-600">Чтобы посчитать дефицит, нужны данные:</p>
-          <ul class="list-disc list-inside text-sm text-gray-700">
-            {% if missing_meals %}
-              <li>Приёмы пищи за сегодня отсутствуют</li>
-            {% endif %}
-            {% if missing_activity %}
-              <li>Данные активности за сегодня отсутствуют</li>
-            {% endif %}
-          </ul>
-          <p class="mt-2 text-sm text-red-600">Пожалуйста, заполните их в соответствующих разделах.</p>
-        {% else %}
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div class="bg-green-50 p-4 rounded-lg">
-              <div class="text-sm text-green-800">Метаболизм</div>
-              <div class="text-lg font-bold">{{ metabolism }} ккал</div>
-            </div>
-            <div class="bg-blue-50 p-4 rounded-lg">
-              <div class="text-sm text-blue-800">Активные ккал</div>
-              <div class="text-lg font-bold">{{ active_kcal }} ккал</div>
-            </div>
-            <div class="bg-yellow-50 p-4 rounded-lg">
-              <div class="text-sm text-yellow-800">Съедено сегодня</div>
-              <div class="text-lg font-bold">{{ total_meals }} ккал</div>
-            </div>
-            <div class="bg-red-50 p-4 rounded-lg">
-              <div class="text-sm text-red-800">Дефицит</div>
-              <div class="text-lg font-bold">{{ deficit }} ккал</div>
-            </div>
-          </div>
-        {% endif %}
-      </div>
-
-      <!-- 2) Краткая сводка активности -->
-      <div class="bg-white p-6 rounded-xl shadow">
-        <h3 class="text-lg font-semibold mb-3">🔹 Активность сегодня</h3>
+      {% if missing_meals or missing_activity %}
+        <p class="text-gray-600">Чтобы посчитать дефицит, нужны данные:</p>
+        <ul class="list-disc list-inside text-sm text-gray-700">
+          {% if missing_meals %}
+            <li>Приёмы пищи за сегодня отсутствуют</li>
+          {% endif %}
+          {% if missing_activity %}
+            <li>Данные активности за сегодня отсутствуют</li>
+          {% endif %}
+        </ul>
+        <p class="mt-2 text-sm text-red-600">Пожалуйста, заполните их в соответствующих разделах.</p>
+      {% else %}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <div class="text-sm text-gray-500">Шаги</div>
-            <div class="text-xl font-bold">{{ steps or '—' }}</div>
+          <div class="bg-green-50 p-4 rounded-lg">
+            <div class="text-sm text-green-800">Метаболизм</div>
+            <div class="text-lg font-bold">{{ metabolism }} ккал</div>
           </div>
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <div class="text-sm text-gray-500">Дистанция</div>
-            <div class="text-xl font-bold">{{ distance_km or '—' }} км</div>
+          <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="text-sm text-blue-800">Активные ккал</div>
+            <div class="text-lg font-bold">{{ active_kcal }} ккал</div>
           </div>
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <div class="text-sm text-gray-500">Активные ккал</div>
-            <div class="text-xl font-bold">{{ active_kcal or '—' }}</div>
+          <div class="bg-yellow-50 p-4 rounded-lg">
+            <div class="text-sm text-yellow-800">Съедено сегодня</div>
+            <div class="text-lg font-bold">{{ total_meals }} ккал</div>
           </div>
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <div class="text-sm text-gray-500">Покой ккал</div>
-            <div class="text-xl font-bold">{{ resting_kcal or '—' }}</div>
+          <div class="bg-red-50 p-4 rounded-lg">
+            <div class="text-sm text-red-800">Дефицит</div>
+            <div class="text-lg font-bold">{{ deficit }} ккал</div>
           </div>
         </div>
-      </div>
-
-      <!-- 3) Карточки по приёмам пищи -->
-      <div class="bg-white p-6 rounded-xl shadow">
-        <h3 class="text-lg font-semibold mb-3">🍽️ Приёмы пищи</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {% for meal in today_meals %}
-            <div class="bg-gray-50 p-4 rounded-lg text-center">
-              <div class="text-sm text-gray-500">{{ meal.meal_type|capitalize }}</div>
-              <div class="mt-2 text-lg font-bold">{{ meal.calories }} ккал</div>
-            </div>
-          {% else %}
-            <div class="col-span-4 text-sm text-gray-500">Нет данных о приёмах пищи</div>
-          {% endfor %}
-        </div>
-      </div>
-
+      {% endif %}
     </div>
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h3 class="text-lg font-semibold mb-3">🔹 Активность сегодня</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-500">Шаги</div>
+          <div class="text-xl font-bold">{{ steps or '—' }}</div>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-500">Дистанция</div>
+          <div class="text-xl font-bold">{{ distance_km or '—' }} км</div>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-500">Калории</div>
+          <div class="text-xl font-bold">{{ active_kcal or '—' }}</div>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-500">Покой ккал</div>
+          <div class="text-xl font-bold">{{ resting_kcal or '—' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h3 class="text-lg font-semibold mb-3">🍽️ Приёмы пищи</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {% for meal in today_meals %}
+          <div class="bg-gray-50 p-4 rounded-lg text-center">
+            <div class="text-sm text-gray-500">{{ meal.meal_type|capitalize }}</div>
+            <div class="mt-2 text-lg font-bold">{{ meal.calories }} ккал</div>
+          </div>
+        {% else %}
+          <div class="col-span-4 text-sm text-gray-500">Нет данных о приёмах пищи</div>
+        {% endfor %}
+      </div>
+    </div>
+
   {% elif request.path == '/activity' %}
-  <!-- Контент активности -->
   <div class="space-y-6">
     <div class="bg-white p-6 rounded-xl shadow">
       <h2 class="text-xl font-semibold mb-4">📊 Детальная активность</h2>
 
       {% if today_activity %}
-      <div class="grid md:grid-cols-2 gap-6 mb-8">
-        <!-- Основные показатели -->
-        <div class="space-y-4">
-          <h3 class="text-lg font-medium">Сегодня</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <div class="text-sm text-gray-500">Шаги</div>
-              <div class="text-xl font-bold">{{ today_activity.steps or '—' }}</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <div class="text-sm text-gray-500">Дистанция</div>
-              <div class="text-xl font-bold">{{ today_activity.distance_km or '—' }} км</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <div class="text-sm text-gray-500">Калории</div>
-              <div class="text-xl font-bold">{{ today_activity.active_kcal or '—' }}</div>
-            </div>
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <div class="text-sm text-gray-500">Пульс</div>
-              <div class="text-xl font-bold">{{ today_activity.heart_rate_avg or '—' }} уд/мин</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Источник данных -->
-        <div>
-          <h3 class="text-lg font-medium mb-4">Источник данных</h3>
-          <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-            <div class="flex items-center">
-              <div class="bg-blue-100 p-3 rounded-full mr-4">
-                <span class="text-blue-600">📱</span>
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+          <div class="space-y-4">
+            <h3 class="text-lg font-medium">Сегодня</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm text-gray-500">Шаги</div>
+                <div class="text-xl font-bold">{{ today_activity.steps or '—' }}</div>
               </div>
-              <div>
-                <div class="font-medium">{{ today_activity.source or 'Неизвестно' }}</div>
-                <div class="text-sm text-gray-500">Последнее обновление: {{ today_activity.date.strftime('%H:%M') }}</div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm text-gray-500">Дистанция</div>
+                <div class="text-xl font-bold">{{ today_activity.distance_km or '—' }} км</div>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm text-gray-500">Калории</div>
+                <div class="text-xl font-bold">{{ today_activity.active_kcal or '—' }}</div>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="text-sm text-gray-500">Пульс</div>
+                <div class="text-xl font-bold">{{ today_activity.heart_rate_avg or '—' }} уд/мин</div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Графики -->
-      <div class="space-y-8">
-        <div>
-          <h3 class="text-lg font-medium mb-3">Шаги за неделю</h3>
-          <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-            [График шагов]
+          <div>
+            <h3 class="text-lg font-medium mb-4">Источник данных</h3>
+            <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+              <div class="flex items-center">
+                <div class="bg-blue-100 p-3 rounded-full mr-4">
+                  <span class="text-blue-600">📱</span>
+                </div>
+                <div>
+                  <div class="font-medium">{{ today_activity.source or 'Неизвестно' }}</div>
+                  <div class="text-sm text-gray-500">Последнее обновление: {{ today_activity.date.strftime('%H:%M') }}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <h3 class="text-lg font-medium mb-3">Активность по дням</h3>
-          <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-            [График активности]
+        <div class="space-y-8">
+          <div>
+            <h3 class="text-lg font-medium mb-3">Шаги за неделю</h3>
+            <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
+              [График шагов]
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-lg font-medium mb-3">Активность по дням</h3>
+            <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
+              [График активности]
+            </div>
           </div>
         </div>
-      </div>
       {% else %}
-      <div class="text-center py-10">
-        <div class="text-gray-400 mb-4">📊</div>
-        <p class="text-gray-500">Данные активности не найдены</p>
-        <p class="text-sm text-gray-400 mt-2">Подключите источник данных (Apple Health, Google Fit и т.д.)</p>
-      </div>
+        <div class="text-center py-10">
+          <div class="text-gray-400 mb-4">📊</div>
+          <p class="text-gray-500">Данные активности не найдены</p>
+          <p class="text-sm text-gray-400 mt-2">Подключите источник данных (Apple Health, Google Fit и т.д.)</p>
+        </div>
       {% endif %}
     </div>
+{% elif request.path == '/meals' %}
+<div class="space-y-6">
+  <h3 class="text-xl font-semibold">🍽️ Приёмы пищи</h3>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    {% for meal_name, key, gradient in [
+      ('Завтрак', 'breakfast', 'bg-gradient-to-br from-amber-300 to-amber-500'),
+      ('Обед',    'lunch',     'bg-gradient-to-br from-orange-300 to-orange-500'),
+      ('Ужин',    'dinner',    'bg-gradient-to-br from-purple-300 to-purple-500')
+    ] %}
+      {% set items = meals.get(key, []) %}
+      {% if items %}
+        <div class="rounded-2xl shadow-lg p-6 relative h-[420px] flex flex-col justify-between {{ gradient }} text-gray-900">
+          <div>
+            <h2 class="text-2xl font-bold mb-4">{{ meal_name }}</h2>
+            <ul class="space-y-3 text-sm leading-relaxed">
+              {% for food in items %}
+                <li class="bg-white bg-opacity-40 rounded-lg px-3 py-2 shadow-sm">
+                  <p class="font-semibold">{{ food.analysis }}</p>
+                  <div class="grid grid-cols-2 gap-2 mt-2 text-xs">
+                    <div class="bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium text-center">
+                      {{ food.calories }} ккал
+                    </div>
+                    <div class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium text-center">
+                      Б: {{ food.protein }} г
+                    </div>
+                    <div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium text-center">
+                      Ж: {{ food.fat }} г
+                    </div>
+                    <div class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-medium text-center">
+                      У: {{ food.carbs }} г
+                    </div>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="text-right">
+            <button onclick="openMealModal('{{ key }}','{{ meal_name }}')"
+                    class="text-xs bg-white bg-opacity-60 hover:bg-opacity-90 text-gray-800 font-medium px-3 py-1 rounded-full shadow transition">
+              ✏️ Изменить
+            </button>
+          </div>
+        </div>
+      {% else %}
+        <div onclick="openMealModal('{{ key }}','{{ meal_name }}')"
+             class="cursor-pointer rounded-2xl shadow-lg p-6 h-[420px] flex items-center justify-center bg-gray-200 hover:bg-gray-300 transition text-gray-600 text-center">
+          <div>
+            <h2 class="text-2xl font-bold mb-2">{{ meal_name }}</h2>
+            <p class="text-sm">Нажмите, чтобы добавить приём пищи</p>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
   </div>
-  {% endif %}
+</div>
+{% endif %}
+
+
+    <div id="mealModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+<div class="bg-white rounded-lg p-6 w-[90%] max-w-sm sm:max-w-md shadow-xl relative animate-fade-in">
+    <button onclick="closeMealModal()"
+            class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+    <h2 class="text-lg font-semibold mb-4">Добавить приём: <span id="modalMealTitle"></span></h2>
+    <input type="file" id="mealFileInput" accept="image/*"
+           class="w-full p-2 border rounded text-sm mb-4">
+    <button id="analyzeMealBtn"
+            onclick="analyzeMeal()"
+            class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mb-4">
+      Анализировать
+    </button>
+
+    <div id="mealLoading" class="flex items-center space-x-2 hidden mb-4">
+      <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+           viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+      </svg>
+      <span>Анализируем...</span>
+    </div>
+
+<div id="mealAnalysisResult" class="hidden mb-4">
+  <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2 text-sm">
+    <div class="text-lg font-semibold text-gray-800" id="resultName"></div>
+    <div class="grid grid-cols-2 gap-2 text-center">
+      <div class="bg-green-100 text-green-800 px-2 py-1 rounded">Калории: <span id="resultCalories"></span> ккал</div>
+      <div class="bg-blue-100 text-blue-800 px-2 py-1 rounded">Белки: <span id="resultProtein"></span> г</div>
+      <div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Жиры: <span id="resultFat"></span> г</div>
+      <div class="bg-purple-100 text-purple-800 px-2 py-1 rounded">Углеводы: <span id="resultCarbs"></span> г</div>
+    </div>
+    <div class="bg-white border border-gray-100 rounded p-2 text-gray-600 text-sm mt-2" id="resultAnalysis"></div>
+  </div>
+</div>
+
+    <form id="confirmMealForm" method="POST" action="/add_meal" class="space-y-4 hidden">
+      <input type="hidden" name="meal_type" id="confirmMealType">
+      <input type="hidden" name="calories"     id="confirmCalories">
+      <input type="hidden" name="protein"      id="confirmProtein">
+      <input type="hidden" name="fat"          id="confirmFat">
+      <input type="hidden" name="carbs"        id="confirmCarbs">
+      <input type="hidden" name="analysis"     id="confirmAnalysis">
+      <button type="submit"
+              class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700">
+        Сохранить
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  let currentMealKey = '';
+
+  function openMealModal(key, title) {
+    currentMealKey = key;
+    document.getElementById('modalMealTitle').textContent = title;
+    document.getElementById('confirmMealType').value = key;
+    document.getElementById('mealAnalysisResult').classList.add('hidden');
+    document.getElementById('confirmMealForm').classList.add('hidden');
+    document.getElementById('mealFileInput').value = '';
+    document.getElementById('mealLoading').classList.add('hidden');
+    document.getElementById('analyzeMealBtn').disabled = false;
+    document.getElementById('mealModal').classList.remove('hidden');
+    document.getElementById('mealModal').classList.add('flex');
+  }
+
+  function closeMealModal() {
+    document.getElementById('mealModal').classList.add('hidden');
+    document.getElementById('mealModal').classList.remove('flex');
+  }
+
+  function analyzeMeal() {
+    const fileInput = document.getElementById('mealFileInput');
+    if (!fileInput.files.length) return alert('Выберите фото блюда');
+
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('meal_type', currentMealKey);
+
+    document.getElementById('analyzeMealBtn').disabled = true;
+    document.getElementById('mealLoading').classList.remove('hidden');
+
+    fetch('/analyze_meal_photo', { method:'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('analyzeMealBtn').disabled = false;
+        document.getElementById('mealLoading').classList.add('hidden');
+        if (data.error) return alert(data.error);
+
+document.getElementById('resultName').textContent     = data.name;
+document.getElementById('resultCalories').textContent = data.calories;
+document.getElementById('resultProtein').textContent  = data.protein;
+document.getElementById('resultFat').textContent      = data.fat;
+document.getElementById('resultCarbs').textContent    = data.carbs;
+document.getElementById('resultAnalysis').textContent = data.analysis;
+
+        document.getElementById('mealAnalysisResult').classList.remove('hidden');
+
+        // заполняем форму подтверждения
+        document.getElementById('confirmCalories').value = data.calories;
+        document.getElementById('confirmProtein').value  = data.protein;
+        document.getElementById('confirmFat').value      = data.fat;
+        document.getElementById('confirmCarbs').value    = data.carbs;
+        document.getElementById('confirmAnalysis').value = data.analysis;
+
+        document.getElementById('confirmMealForm').classList.remove('hidden');
+      })
+      .catch(err => {
+        alert('Ошибка анализа: ' + err.message);
+        document.getElementById('analyzeMealBtn').disabled = false;
+        document.getElementById('mealLoading').classList.add('hidden');
+      });
+  }
+</script>
+
 
 </div>
 
-<!-- Прелоадер и модалки (остаются без изменений) -->
 <div id="dietLoader" class="fixed inset-0 bg-white/80 flex items-center justify-center z-50 hidden">
   <svg class="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none"
        viewBox="0 0 24 24">
@@ -456,7 +747,6 @@
   <p class="mt-2 text-gray-700">Генерируем диету по твоим данным...</p>
 </div>
 
-<!-- Модалка Telegram -->
 <div id="telegramModal" class="fixed inset-0 bg-black/40 z-50 hidden items-center justify-center">
   <div class="bg-white p-6 rounded-lg w-full max-w-md shadow-xl relative space-y-4 text-center animate-fade-in">
     <button onclick="closeTelegramModal()" class="absolute top-2 right-4 text-gray-400 text-2xl hover:text-gray-600">&times;</button>
@@ -478,6 +768,17 @@
   @keyframes fadeIn {
     from {opacity: 0; transform: scale(0.9);}
     to {opacity: 1; transform: scale(1);}
+  }
+
+  /* Keyframes для пульсирующего фона */
+  @keyframes pulse-background {
+    0% { opacity: 0; }
+    50% { opacity: 0.2; } /* Более мягкий пульс */
+    100% { opacity: 0; }
+  }
+
+  .animate-pulse-background:hover {
+    animation: pulse-background 1.5s infinite; /* Применяем анимацию только при наведении */
   }
 </style>
 
@@ -547,17 +848,10 @@
       alert('Код скопирован!');
     });
   }
-</script>
 
-<script>
   function toggleAnalysisForm() {
     const form = document.getElementById("uploadForm");
-    if (form.classList.contains("hidden")) {
-      form.classList.remove("hidden");
-    } else {
-      form.classList.add("hidden");
-    }
+    form.classList.toggle("hidden");
   }
 </script>
-
 {% endblock %}

@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta
 import base64
 import json
 import requests
-from flask import Flask, render_template, request, redirect, session, jsonify
+from flask import Flask, render_template, request, redirect, session, jsonify, url_for, flash, abort, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
@@ -15,7 +15,8 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 import re
 from sqlalchemy import func
-
+from functools import wraps
+from PIL import Image # Import Pillow
 
 load_dotenv()
 
@@ -23,12 +24,62 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "supersecret")
 app.jinja_env.globals.update(getattr=getattr)
 
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# --- Image Resizing Configuration ---
+CHAT_IMAGE_MAX_SIZE = (200, 200) # Max width and height for chat images
+
+def resize_image(filepath, max_size):
+    """Resizes an image and saves it back to the same path."""
+    try:
+        with Image.open(filepath) as img:
+            print(f"DEBUG: Resizing image: {filepath}, original size: {img.size}")
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+            img.save(filepath) # Overwrites the original
+            print(f"DEBUG: Image resized to: {img.size}")
+    except Exception as e:
+        print(f"ERROR: Failed to resize image {filepath}: {e}")
+
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+ADMIN_EMAIL = "admin@healthclub.local"
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_current_user():
+    user_id = session.get('user_id')
+    if user_id:
+        return db.session.get(User, user_id)
+    return None
+
+def is_admin():
+    user = get_current_user()
+    return user and user.email == ADMIN_EMAIL
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('user_id'):
+            return redirect(url_for('login', next=request.url))
+        if not is_admin():
+            abort(403) # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Config DB
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///35healthclubs.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 db = SQLAlchemy(app)
@@ -61,11 +112,85 @@ class User(db.Model):
     fat_mass = db.Column(db.Float)
     bmi = db.Column(db.Float)
     fat_free_body_weight = db.Column(db.Float)
+    is_trainer = db.Column(db.Boolean, default=False, nullable=False)
+    # Сохраняем только имя файла аватарки
+    avatar = db.Column(db.String(200), nullable=True)
 
     analysis_comment = db.Column(db.Text)
     telegram_chat_id = db.Column(db.String(50), nullable=True)
     telegram_code = db.Column(db.String(10), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Group(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)  # «дивиз» группы
+    trainer_id  = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    trainer     = db.relationship('User', backref=db.backref('own_group', uselist=False))
+    members     = db.relationship('GroupMember', back_populates='group', cascade='all, delete-orphan')
+    messages    = db.relationship('GroupMessage', back_populates='group', cascade='all, delete-orphan')
+
+
+class GroupMember(db.Model):
+    id        = db.Column(db.Integer, primary_key=True)
+    group_id  = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    user_id   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('group_id', 'user_id', name='uq_group_user'),
+    )
+
+    group = db.relationship('Group', back_populates='members')
+    user  = db.relationship('User', backref=db.backref('groups', lazy='dynamic'))
+
+
+class GroupMessage(db.Model):
+    id        = db.Column(db.Integer, primary_key=True)
+    group_id  = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    user_id   = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    text      = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    # New: Add support for image messages (stores filename)
+    image_file = db.Column(db.String(200), nullable=True)
+
+    group = db.relationship('Group', back_populates='messages')
+    user  = db.relationship('User')
+    # New: Relationship for reactions
+    reactions = db.relationship('MessageReaction', back_populates='message', cascade='all, delete-orphan')
+
+
+class MessageReaction(db.Model):
+    id         = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('group_message.id'), nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # For simplicity, let's just use 'like' or an emoji string
+    reaction_type = db.Column(db.String(20), nullable=False, default='👍')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('message_id', 'user_id', name='uq_message_user_reaction'),
+    )
+    message = db.relationship('GroupMessage', back_populates='reactions')
+    user = db.relationship('User')
+
+
+class GroupTask(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    group_id    = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    trainer_id  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title       = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    is_announcement = db.Column(db.Boolean, default=False, nullable=False) # True for announcements, False for tasks
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    due_date    = db.Column(db.Date, nullable=True) # Optional due date for tasks
+
+    group = db.relationship('Group', backref=db.backref('tasks', cascade='all, delete-orphan', lazy='dynamic'))
+    trainer = db.relationship('User')
+
 
 class MealLog(db.Model):
     __tablename__ = 'meal_logs'
@@ -115,6 +240,7 @@ class Diet(db.Model):
     carbs = db.Column(db.Float)
     user = db.relationship('User', backref=db.backref('diets', lazy=True))
 
+
 class BodyAnalysis(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -159,8 +285,15 @@ def utility_processor():
             return "Избыточный вес"
         else:
             return "Ожирение"
-    return dict(get_bmi_category=get_bmi_category)
 
+    return dict(
+        get_bmi_category=get_bmi_category,
+        calculate_age=calculate_age,     # <-- теперь в шаблоне доступна
+        today=date.today(),              # <-- и переменная today
+    )
+@app.context_processor
+def inject_user():
+    return {'current_user': get_current_user()}
 # ------------------ ROUTES ------------------
 
 @app.route('/')
@@ -231,6 +364,8 @@ def register():
     return render_template('register.html')
 
 
+# ... (existing imports) ...
+
 @app.route('/profile')
 def profile():
     user_id = session.get('user_id')
@@ -250,6 +385,40 @@ def profile():
     latest = analyses[0] if len(analyses) > 0 else None
     previous = analyses[1] if len(analyses) > 1 else None
 
+    # Дополнительно для меню 'Метрики'
+    total_meals = db.session.query(func.sum(MealLog.calories)) \
+        .filter_by(user_id=user.id, date=date.today()) \
+        .scalar() or 0
+    today_meals = MealLog.query \
+        .filter_by(user_id=user.id, date=date.today()) \
+        .all()
+    metabolism = user.metabolism or 0
+    active_kcal   = today_activity.active_kcal  if today_activity else None
+    steps         = today_activity.steps        if today_activity else None
+    distance_km   = today_activity.distance_km  if today_activity else None
+    resting_kcal  = today_activity.resting_kcal if today_activity else None
+
+    missing_meals    = (total_meals == 0)
+    missing_activity = (active_kcal is None)
+
+    deficit = None
+    if not missing_meals and not missing_activity and metabolism is not None:
+        deficit = (metabolism + (active_kcal or 0)) - total_meals
+
+    # --- NEW: Fetch user's group memberships ---
+    user_memberships = GroupMember.query.filter_by(user_id=user.id).all()
+    # If the user is a trainer and owns a group, that's their primary group.
+    # Otherwise, they might be a member of other groups.
+    user_joined_group = None
+    if user.own_group:
+        user_joined_group = user.own_group
+    elif user_memberships:
+        # For simplicity, if a user is a member of multiple groups,
+        # you might choose to show the first one, or modify this to show a list.
+        # For now, let's just pick the first one they are a member of.
+        user_joined_group = user_memberships[0].group
+
+
     return render_template(
         'profile.html',
         user=user,
@@ -258,12 +427,22 @@ def profile():
         today_activity=today_activity,
         latest_analysis=latest,
         previous_analysis=previous,
-        breakfast=json.loads(diet.breakfast) if diet and diet.breakfast else [],
-        lunch=json.loads(diet.lunch) if diet and diet.lunch else [],
-        dinner=json.loads(diet.dinner) if diet and diet.dinner else [],
-        snack=json.loads(diet.snack) if diet and diet.snack else []
+        # Данные для метрик
+        total_meals=total_meals,
+        today_meals=today_meals,
+        metabolism=metabolism,
+        active_kcal=active_kcal,
+        steps=steps,
+        distance_km=distance_km,
+        resting_kcal=resting_kcal,
+        deficit=deficit,
+        missing_meals=missing_meals,
+        missing_activity=missing_activity,
+        # --- NEW: Pass user_joined_group ---
+        user_joined_group=user_joined_group
     )
 
+# ... (rest of your existing code) ...
 
 @app.route('/logout')
 def logout():
@@ -275,6 +454,7 @@ def upload_analysis():
     file = request.files.get('file')
     user_id = session.get('user_id')
     if not file or not user_id:
+        flash("Файл не загружен или пользователь не авторизован.", "error")
         return redirect('/profile')
 
     filename = secure_filename(file.filename)
@@ -354,26 +534,57 @@ def upload_analysis():
 
         if "error" in result:
             missing = ', '.join(result.get("missing", []))
-            return render_template('confirm_analysis.html', data=None, error=f"Недостаточно данных: {missing}")
+            flash(f"Недостаточно данных в анализе: {missing}. Пожалуйста, загрузите более четкое изображение или заполните данные вручную.", "error")
+            return redirect('/profile') # Или на страницу с ручным вводом
 
         session['temp_analysis'] = result
         return render_template('confirm_analysis.html', data=result)
 
     except Exception as e:
-        return f"Ошибка анализа: {e}"
+        flash(f"Ошибка анализа изображения: {e}", "error")
+        return redirect('/profile')
+
+
+@app.route("/meals", methods=["GET", "POST"])
+@login_required
+def meals():
+    user = get_current_user()
+    if request.method == "POST":
+        meal_type = request.form["meal_type"]
+        # Эти поля больше не используются напрямую, т.к. данные берутся из GPT
+        # name = request.form["name"]
+        # grams = float(request.form["grams"])
+        # kcal = float(request.form["kcal"])
+
+        # Убран старый код добавления, т.к. теперь используется /add_meal
+        flash("Используйте форму 'Добавить приём пищи' или 'Загрузить фото' на странице профиля.", "info")
+        return redirect("/profile")
+
+    today_meals = MealLog.query.filter_by(user_id=user.id, date=datetime.utcnow().date()).all()
+    grouped = {
+        "breakfast": [],
+        "lunch": [],
+        "dinner": [],
+        "snack": []
+    }
+    for m in today_meals:
+        grouped[m.meal_type].append(m)
+
+    return render_template("profile.html", user=user, meals=grouped, tab='meals')
 
 
 @app.route('/confirm_analysis', methods=['POST'])
 def confirm_analysis():
     user_id = session.get('user_id')
     if not user_id or 'temp_analysis' not in session:
+        flash("Нет данных для подтверждения анализа.", "error")
         return redirect('/profile')
 
     data = session.pop('temp_analysis')
     user = db.session.get(User, user_id)
 
     # 1) Сохраняем предыдущие в историю, если уже были данные
-    if user.height is not None:
+    if user.height is not None: # Проверяем, были ли ранее загружены данные
         history = BodyAnalysis(
             user_id=user.id,
             height=user.height,
@@ -404,11 +615,13 @@ def confirm_analysis():
         if f in data:
             setattr(user, f, data[f])
 
-    user.analysis_comment = data.get("analysis")
+    user.analysis_comment = data.get("analysis") # Это поле не из анализа, если оно было в GPT
     user.updated_at = datetime.utcnow()
     db.session.commit()
 
-    # 3) Сохраняем новый замер сразу после обновления user
+    # 3) Сохраняем новый замер в историю (дублирование для удобства истории)
+    # Это создает новую запись в BodyAnalysis для текущих данных пользователя
+    # после того, как поля пользователя были обновлены.
     new_analysis = BodyAnalysis(
         user_id=user.id,
         height=user.height,
@@ -430,6 +643,7 @@ def confirm_analysis():
     db.session.add(new_analysis)
     db.session.commit()
 
+    flash("Данные анализа тела успешно обновлены!", "success")
     return redirect('/profile')
 
 
@@ -456,6 +670,11 @@ def generate_diet():
     goal = request.args.get("goal", "maintain")
     gender = request.args.get("gender", "male")
     preferences = request.args.get("preferences", "")
+
+    # Проверка наличия всех необходимых данных для генерации диеты
+    if None in [user.height, user.weight, user.muscle_mass, user.fat_mass, user.metabolism]:
+        flash("Пожалуйста, заполните данные анализа тела (рост, вес, мышечная масса, жировая масса, метаболизм) для генерации диеты.", "warning")
+        return jsonify({"redirect": "/profile"}) # Перенаправляем на профиль с предупреждением
 
     prompt = f"""
     У пользователя следующие параметры:
@@ -504,6 +723,12 @@ def generate_diet():
             content = content.split('```json')[1].split('```')[0].strip()
         diet_data = json.loads(content)
 
+        # Удаляем старую диету за сегодня, если она есть
+        existing_diet = Diet.query.filter_by(user_id=user_id, date=date.today()).first()
+        if existing_diet:
+            db.session.delete(existing_diet)
+            db.session.commit()
+
         diet = Diet(
             user_id=user_id,
             date=date.today(),
@@ -519,7 +744,8 @@ def generate_diet():
         db.session.add(diet)
         db.session.commit()
 
-        # Отправка в Telegram
+        flash("Диета успешно сгенерирована!", "success")
+
         # Отправка в Telegram
         if user.telegram_chat_id:
             message = f"🍽️ Ваша диета на сегодня:\n\n"
@@ -550,22 +776,23 @@ def generate_diet():
         return jsonify({"redirect": "/diet"})
 
     except Exception as e:
+        flash(f"Ошибка генерации диеты: {e}", "error")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/diet')
+@login_required
 def diet():
     user_id = session.get('user_id')
     diet = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
     if not diet:
-        return "Диета ещё не сгенерирована."
+        flash("Диета ещё не сгенерирована. Сгенерируйте ее из профиля.", "info")
+        return redirect('/profile')
 
     return render_template("confirm_diet.html", diet=diet,
                            breakfast=json.loads(diet.breakfast),
                            lunch=json.loads(diet.lunch),
                            dinner=json.loads(diet.dinner),
                            snack=json.loads(diet.snack))
-
-from sqlalchemy import func
 
 
 @app.route('/upload_activity', methods=['POST'])
@@ -575,6 +802,12 @@ def upload_activity():
     user = User.query.filter_by(email=email).first()
     if not user:
         return jsonify({'error': 'Пользователь не найден'}), 404
+
+    # Удаляем старую активность за сегодня, если она есть
+    existing_activity = Activity.query.filter_by(user_id=user.id, date=date.today()).first()
+    if existing_activity:
+        db.session.delete(existing_activity)
+        db.session.commit()
 
     activity = Activity(
         user_id=user.id,
@@ -592,10 +825,9 @@ def upload_activity():
     return jsonify({'message': 'Активность сохранена'})
 
 @app.route('/manual_activity', methods=['GET', 'POST'])
+@login_required
 def manual_activity():
     user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
     user = db.session.get(User, user_id)
 
     if request.method == 'POST':
@@ -604,6 +836,12 @@ def manual_activity():
         resting_kcal = request.form.get('resting_kcal')
         heart_rate_avg = request.form.get('heart_rate_avg')
         distance_km = request.form.get('distance_km')
+
+        # Удаляем старую активность за сегодня, если она есть
+        existing_activity = Activity.query.filter_by(user_id=user.id, date=date.today()).first()
+        if existing_activity:
+            db.session.delete(existing_activity)
+            db.session.commit()
 
         activity = Activity(
             user_id=user.id,
@@ -617,20 +855,22 @@ def manual_activity():
         )
         db.session.add(activity)
         db.session.commit()
+        flash("Активность за сегодня успешно обновлена!", "success")
         return redirect('/profile')
 
-    return render_template('manual_activity.html', user=user)
+    # Предзаполнение формы текущими данными, если они есть
+    today_activity = Activity.query.filter_by(user_id=user_id, date=date.today()).first()
+    return render_template('manual_activity.html', user=user, today_activity=today_activity)
 
 
 @app.route('/diet_history')
+@login_required
 def diet_history():
     user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
 
     today = date.today()
-    week_ago = today - datetime.timedelta(days=7)
-    month_ago = today - datetime.timedelta(days=30)
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
 
     diets = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).all()
     week_total = db.session.query(func.sum(Diet.total_kcal)).filter(
@@ -644,7 +884,7 @@ def diet_history():
     ).scalar() or 0
 
     # 📊 График за 7 дней
-    last_7_days = [today - datetime.timedelta(days=i) for i in range(6, -1, -1)]
+    last_7_days = [today - timedelta(days=i) for i in range(6, -1, -1)]
     chart_labels = [d.strftime("%d.%m") for d in last_7_days]
     chart_values = []
 
@@ -661,12 +901,41 @@ def diet_history():
         chart_values=json.dumps(chart_values)
     )
 
+@app.route('/add_meal', methods=['POST'])
+@login_required
+def add_meal():
+    user_id = session.get('user_id')
+
+    meal = MealLog(
+        user_id=user_id,
+        date=date.today(),
+        meal_type=request.form['meal_type'],
+        calories=int(request.form['calories']),
+        protein=float(request.form['protein']),
+        fat=float(request.form['fat']),
+        carbs=float(request.form['carbs']),
+        analysis=request.form.get('analysis', '')
+    )
+
+    try:
+        db.session.add(meal)
+        db.session.commit()
+        flash(f"Приём пищи '{meal.meal_type}' успешно добавлен!", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"Приём пищи типа '{meal.meal_type}' уже добавлен на сегодня. Отредактируйте существующий.", "error")
+
+    return redirect('/profile')
+
+
 @app.route('/diet/<int:diet_id>')
+@login_required
 def view_diet(diet_id):
     user_id = session.get('user_id')
     diet = Diet.query.filter_by(id=diet_id, user_id=user_id).first()
     if not diet:
-        return "Диета не найдена."
+        flash("Диета не найдена.", "error")
+        return redirect('/diet_history')
 
     return render_template("confirm_diet.html", diet=diet,
                            breakfast=json.loads(diet.breakfast),
@@ -676,15 +945,17 @@ def view_diet(diet_id):
 
 
 @app.route('/reset_diet', methods=['POST'])
+@login_required
 def reset_diet():
     user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
 
     diet = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
-    if diet:
+    if diet and diet.date == date.today(): # Удаляем только диету за сегодня
         db.session.delete(diet)
         db.session.commit()
+        flash("Сегодняшняя диета успешно сброшена. Вы можете сгенерировать новую.", "success")
+    else:
+        flash("Нет сегодняшней диеты для сброса.", "info")
 
     return redirect('/profile')
 
@@ -735,10 +1006,9 @@ def api_current_diet(chat_id):
 
 
 @app.route('/activity')
+@login_required
 def activity():
     user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
 
     user = db.session.get(User, user_id)
     today_activity = Activity.query.filter_by(user_id=user_id, date=date.today()).first()
@@ -760,16 +1030,18 @@ def activity():
 
     for day in (date.today() - timedelta(days=i) for i in range(6, -1, -1)):
         chart_data['dates'].append(day.strftime('%d.%m'))
-        activity = next((a for a in activities if a.date == day), None)
-        chart_data['steps'].append(activity.steps if activity else 0)
-        chart_data['calories'].append(activity.active_kcal if activity else 0)
-        chart_data['heart_rate'].append(activity.heart_rate_avg if activity else 0)
+        activity_for_day = next((a for a in activities if a.date == day), None) # Переименовано, чтобы избежать конфликта
+        chart_data['steps'].append(activity_for_day.steps if activity_for_day else 0)
+        chart_data['calories'].append(activity_for_day.active_kcal if activity_for_day else 0)
+        chart_data['heart_rate'].append(activity_for_day.heart_rate_avg if activity_for_day else 0)
 
+    # Здесь возвращаем activity.html, если он есть, или используем profile.html с нужным табом
     return render_template(
-        'profile.html',  # Используем тот же шаблон, что и для профиля
+        'profile.html',
         user=user,
         today_activity=today_activity,
-        chart_data=chart_data
+        chart_data=chart_data,
+        tab='activity' # Указываем активный таб
     )
 
 @app.route('/api/log_meal', methods=['POST'])
@@ -834,6 +1106,74 @@ def delete_meal():
     db.session.commit()
     return '', 200
 
+@app.route('/analyze_meal_photo', methods=['POST'])
+@login_required
+def analyze_meal_photo():
+    file     = request.files.get('file')
+    meal_type= request.form.get('meal_type')
+    if not file or not meal_type:
+        flash('Не передан файл или тип приёма пищи.', 'error')
+        return redirect('/profile')
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+
+    # кодируем в base64
+    with open(filepath, 'rb') as f:
+        b64 = base64.b64encode(f.read()).decode('utf-8')
+
+    # формируем запрос в GPT
+    system = (
+      "Ты — профессиональный диетолог и эксперт по анализу блюд. "
+      "На входе — фото еды. Определи:"
+      "\n- Название блюда "
+      "- Калорийность (ккал) "
+      "- Белки (г), Жиры (г), Углеводы (г) "
+      "- Дай короткий текстовый анализ блюда."
+      "\nВерни JSON строго в формате:"
+      '{"name": "...", "calories": 0, "protein": 0.0, "fat": 0.0, "carbs": 0.0, "analysis": "..."}'
+    )
+
+    try:
+        response = client.chat.completions.create(
+          model="gpt-4o",
+          messages=[
+            {"role":"system","content":system},
+            {"role":"user", "content":[
+               {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}},
+               {"type":"text","text":"Проанализируй блюдо на фото."}
+            ]}
+          ],
+          max_tokens=500
+        )
+
+        content = response.choices[0].message.content.strip()
+        # убираем ```json если есть
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0]
+        data = json.loads(content)
+
+        # Сохраняем данные в MealLog
+        meal = MealLog(
+            user_id=session.get('user_id'),
+            date=date.today(),
+            meal_type=meal_type,
+            calories=int(data.get('calories', 0)),
+            protein=float(data.get('protein', 0.0)),
+            fat=float(data.get('fat', 0.0)),
+            carbs=float(data.get('carbs', 0.0)),
+            analysis=data.get('analysis', '')
+        )
+        db.session.add(meal)
+        db.session.commit()
+        flash(f"Приём пищи '{meal_type}' успешно добавлен по фото!", "success")
+        return redirect('/profile')
+
+    except Exception as e:
+        flash(f"Ошибка анализа фото или сохранения данных: {e}", "error")
+        return redirect('/profile')
+
 
 @app.route('/api/meals/today/<int:chat_id>')
 def get_today_meals(chat_id):
@@ -846,10 +1186,9 @@ def get_today_meals(chat_id):
 
 
 @app.route('/metrics')
+@login_required
 def metrics():
     user_id = session.get('user_id')
-    if not user_id:
-        return redirect('/login')
     user = db.session.get(User, user_id)
 
     # 1) Суммарные калории по приёмам пищи за сегодня
@@ -878,7 +1217,7 @@ def metrics():
 
     # 4) Дефицит
     deficit = None
-    if not missing_meals and not missing_activity:
+    if not missing_meals and not missing_activity and metabolism is not None:
         deficit = (metabolism + active_kcal) - total_meals
 
     return render_template(
@@ -890,7 +1229,7 @@ def metrics():
         today_activity=activity,
         latest_analysis=BodyAnalysis.query.filter_by(user_id=user.id).order_by(BodyAnalysis.timestamp.desc()).first(),
         previous_analysis=BodyAnalysis.query.filter_by(user_id=user.id).order_by(BodyAnalysis.timestamp.desc()).offset(1).first(),
-        chart_data=None,
+        chart_data=None, # Отключаем для этой страницы, если не нужно
 
         # новые переменные для metrics
         total_meals=total_meals,
@@ -902,7 +1241,8 @@ def metrics():
         resting_kcal=resting_kcal,
         deficit=deficit,
         missing_meals=missing_meals,
-        missing_activity=missing_activity
+        missing_activity=missing_activity,
+        tab='metrics' # Указываем активный таб
     )
 
 @app.route('/api/registered_chats')
@@ -916,6 +1256,441 @@ def registered_chats():
     # chats — список кортежей, поэтому разбираем
     chat_ids = [c[0] for c in chats]
     return jsonify({"chat_ids": chat_ids})
+
+# ---------------- ADMIN PANEL ----------------
+
+@app.route("/admin")
+@admin_required # Защита маршрута для админа
+def admin_dashboard():
+    users = User.query.order_by(User.updated_at.desc()).all()
+    today = date.today()
+
+    statuses = {}
+    details  = {}
+
+    # Определяем тот же список полей, что и в profile.html
+    metrics_def = [
+        ('Рост', 'height', '📏', 'см', True),
+        ('Вес', 'weight', '⚖️', 'кг', False),
+        ('Мышцы', 'muscle_mass', '💪', 'кг', True),
+        ('Жир', 'fat_mass', '🧈', 'кг', False),
+        ('Вода', 'body_water', '💧', '%', True),
+        ('Метаболизм', 'metabolism', '⚡', 'ккал', True),
+        ('Белок', 'protein_percentage', '🥚', '%', True),
+        ('Висц. жир', 'visceral_fat_rating', '🔥', '', False),
+        ('ИМТ', 'bmi', '📐', '', False),
+    ]
+
+    for u in users:
+        # статусы
+        has_meal     = MealLog.query.filter_by(user_id=u.id, date=today).count() > 0
+        has_activity = Activity.query.filter_by(user_id=u.id, date=today).count() > 0
+        statuses[u.id] = {'meal': has_meal, 'activity': has_activity}
+
+        # приемы пищи
+        meals = MealLog.query.filter_by(user_id=u.id, date=today).all()
+        meals_data = [{
+            'type': m.meal_type,
+            'cal':  m.calories,
+            'prot': m.protein,
+            'fat':  m.fat,
+            'carbs':m.carbs
+        } for m in meals]
+
+        # активность
+        act = Activity.query.filter_by(user_id=u.id, date=today).first()
+        activity_data = None
+        if act:
+            activity_data = {
+                'steps':        act.steps,
+                'active_kcal':  act.active_kcal,
+                'resting_kcal': act.resting_kcal,
+                'distance_km':  act.distance_km,
+                'hr_avg':       act.heart_rate_avg
+            }
+
+        # анализ тела
+        last = BodyAnalysis.query.filter_by(user_id=u.id)\
+                                  .order_by(BodyAnalysis.timestamp.desc()).first()
+        prev = BodyAnalysis.query.filter_by(user_id=u.id)\
+                                  .order_by(BodyAnalysis.timestamp.desc()).offset(1).first()
+
+        # собираем массив метрик с дельтами
+        metrics = []
+        for label, field, icon, unit, good_up in metrics_def:
+            cur = getattr(last, field, None)
+            pr  = getattr(prev, field, None)
+            diff = pct = arrow = None
+            is_good = None
+            if cur is not None and pr is not None:
+                diff = cur - pr
+                if pr != 0:
+                    pct = diff / pr * 100
+                arrow = '↑' if diff > 0 else '↓' if diff < 0 else '' # Добавлено для отображения стрелки даже при отсутствии is_good
+                is_good = (diff > 0 and good_up) or (diff < 0 and not good_up)
+            metrics.append({
+                'label':    label,
+                'icon':     icon,
+                'unit':     unit,
+                'cur':      cur,
+                'diff':     diff,
+                'pct':      pct,
+                'arrow':    arrow,
+                'is_good':  is_good
+            })
+
+        details[u.id] = {
+            'meals':    meals_data,
+            'activity': activity_data,
+            'metrics':  metrics
+        }
+
+    return render_template(
+        "admin_dashboard.html",
+        users=users,
+        statuses=statuses,
+        details=details,
+        today=today
+    )
+
+@app.route("/admin/user/<int:user_id>")
+@admin_required
+def admin_user_detail(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Пользователь не найден", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    today = date.today()
+    has_meal     = MealLog.query.filter_by(user_id=user.id,     date=today).count() > 0
+    has_activity = Activity.query.filter_by(user_id=user.id, date=today).count() > 0
+
+    meals = MealLog.query\
+            .filter_by(user_id=user.id)\
+            .order_by(MealLog.date.desc())\
+            .all()
+
+    return render_template(
+        "admin_user.html",
+        user=user,
+        meals=meals,
+        has_meal=has_meal,
+        has_activity=has_activity
+    )
+
+
+@app.route("/admin/user/<int:user_id>/edit", methods=["POST"])
+@admin_required
+def admin_user_edit(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Пользователь не найден", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    user.name = request.form["name"].strip()
+    user.email = request.form["email"].strip()
+    dob = request.form.get("date_of_birth")
+    user.date_of_birth = datetime.strptime(dob, "%Y-%m-%d").date() if dob else None
+
+    # Обработка загрузки аватарки
+    if 'avatar' in request.files:
+        file = request.files['avatar']
+        if file.filename != '':
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            user.avatar = filename # Сохраняем только имя файла в БД
+
+    db.session.commit()
+    flash("Данные пользователя обновлены", "success")
+    return redirect(url_for("admin_user_detail", user_id=user.id))
+
+@app.route('/groups')
+@login_required
+def groups_list():
+    user = get_current_user()
+    # если тренер — показываем его группу (или кнопку создания)
+    if user.is_trainer:
+        return render_template('groups_list.html', group=user.own_group)
+    # обычный пользователь — список всех групп
+    groups = Group.query.all()
+    return render_template('groups_list.html', groups=groups)
+
+@app.route('/groups/new', methods=['GET', 'POST'])
+@login_required
+def create_group():
+    user = get_current_user()
+    if not user.is_trainer:
+        abort(403)
+    if user.own_group:
+        flash("Вы уже являетесь тренером группы. Вы можете создать только одну группу.", "warning")
+        return redirect(url_for('group_detail', group_id=user.own_group.id))
+    if request.method == 'POST':
+        name        = request.form['name']
+        description = request.form.get('description', '').strip()
+        if not name:
+            flash("Название группы обязательно!", "error")
+            return render_template('group_new.html')
+
+        group = Group(name=name, description=description, trainer=user)
+        db.session.add(group)
+        db.session.commit()
+        flash(f"Группа '{group.name}' успешно создана!", "success")
+        return redirect(url_for('group_detail', group_id=group.id))
+    return render_template('group_new.html')
+
+@app.route('/groups/<int:group_id>')
+@login_required
+def group_detail(group_id):
+    group = Group.query.get_or_404(group_id)
+    user  = get_current_user()
+    is_member = any(m.user_id == user.id for m in group.members)
+
+    # Process messages for grouping in the template
+    raw_messages = GroupMessage.query.filter_by(group_id=group.id).order_by(GroupMessage.timestamp.desc()).all()
+    processed_messages = []
+    last_sender_id = None
+
+    for message in raw_messages:
+        show_avatar = (message.user_id != last_sender_id)
+        processed_messages.append({
+            'id': message.id,
+            'group_id': message.group_id,
+            'user_id': message.user_id,
+            'user': message.user, # Eagerly load user for template
+            'text': message.text,
+            'timestamp': message.timestamp,
+            'image_file': message.image_file,
+            'reactions': message.reactions, # Eagerly load reactions
+            'show_avatar': show_avatar,
+            'is_current_user': (message.user_id == user.id)
+        })
+        last_sender_id = message.user_id
+
+    # Fetch tasks and announcements
+    tasks = GroupTask.query.filter_by(group_id=group.id, is_announcement=False).order_by(GroupTask.created_at.desc()).all()
+    announcements = GroupTask.query.filter_by(group_id=group.id, is_announcement=True).order_by(GroupTask.created_at.desc()).all()
+
+
+    group_member_stats = []
+    if user.is_trainer and group.trainer_id == user.id:
+        today = date.today()
+        # Include trainer in stats if they are a member of their own group (optional, but consistent)
+        all_relevant_members = [m.user for m in group.members]
+        if group.trainer not in all_relevant_members and group.trainer.email != ADMIN_EMAIL:
+             all_relevant_members.append(group.trainer)
+
+        for member_user in all_relevant_members:
+            # Skip admin user from stats if they are not part of the group formally
+            if member_user.email == ADMIN_EMAIL and not any(m.user_id == member_user.id for m in group.members):
+                continue
+
+            # Check if the user has logged meals today
+            has_meals_today = MealLog.query.filter_by(user_id=member_user.id, date=today).count() > 0
+
+            # Calculate total calorie intake from meals for today
+            total_meals_kcal = db.session.query(func.sum(MealLog.calories)) \
+                .filter_by(user_id=member_user.id, date=today) \
+                .scalar() or 0
+
+            # Get today's activity for active calories
+            member_activity = Activity.query.filter_by(user_id=member_user.id, date=today).first()
+            active_kcal = member_activity.active_kcal if member_activity else 0
+
+            deficit = None
+            # Ensure the user has a basal metabolism value to calculate deficit
+            if member_user.metabolism is not None:
+                deficit = (member_user.metabolism + active_kcal) - total_meals_kcal
+
+            group_member_stats.append({
+                'user': member_user,
+                'has_meals_today': has_meals_today,
+                'deficit': deficit,
+                'is_trainer_in_group': (member_user.id == group.trainer_id) # Flag for template
+            })
+        # Sort stats: trainer first, then by name or a key metric
+        group_member_stats.sort(key=lambda x: (not x['is_trainer_in_group'], x['user'].name.lower()))
+
+
+    return render_template('group_detail.html',
+                           group=group,
+                           is_member=is_member,
+                           processed_messages=processed_messages, # Pass processed messages
+                           group_member_stats=group_member_stats,
+                           tasks=tasks,
+                           announcements=announcements)
+
+
+@app.route('/group_message/<int:message_id>/react', methods=['POST'])
+@login_required
+def react_to_message(message_id):
+    message = GroupMessage.query.get_or_404(message_id)
+    user = get_current_user()
+
+    # Check if user already reacted to this message
+    existing_reaction = MessageReaction.query.filter_by(
+        message_id=message_id,
+        user_id=user.id
+    ).first()
+
+    if existing_reaction:
+        # If already reacted, remove the reaction (toggle)
+        db.session.delete(existing_reaction)
+        db.session.commit()
+        flash("Реакция удалена.", "info")
+    else:
+        # Otherwise, add a new reaction
+        reaction = MessageReaction(message=message, user=user, reaction_type='👍') # Default to thumbs up
+        db.session.add(reaction)
+        db.session.commit()
+        flash("Реакция добавлена!", "success")
+
+    return redirect(url_for('group_detail', group_id=message.group_id))
+
+
+@app.route('/groups/<int:group_id>/tasks/new', methods=['POST'])
+@login_required
+def create_group_task(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    # Only the group's trainer can create tasks/announcements
+    if not (user.is_trainer and group.trainer_id == user.id):
+        abort(403)
+
+    title = request.form['title'].strip()
+    description = request.form.get('description', '').strip()
+    is_announcement = 'is_announcement' in request.form
+    due_date_str = request.form.get('due_date')
+
+    if not title:
+        flash("Заголовок обязателен.", "error")
+        return redirect(url_for('group_detail', group_id=group_id))
+
+    due_date = None
+    if due_date_str:
+        try:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash("Неверный формат даты. Используйте ГГГГ-ММ-ДД.", "error")
+            return redirect(url_for('group_detail', group_id=group_id))
+
+    task = GroupTask(
+        group=group,
+        trainer=user,
+        title=title,
+        description=description,
+        is_announcement=is_announcement,
+        due_date=due_date
+    )
+    db.session.add(task)
+    db.session.commit()
+    flash(f"{'Объявление' if is_announcement else 'Задача'} '{title}' успешно добавлено!", "success")
+    return redirect(url_for('group_detail', group_id=group_id))
+
+
+@app.route('/groups/tasks/<int:task_id>/delete', methods=['POST'])
+@login_required
+def delete_group_task(task_id):
+    task = GroupTask.query.get_or_404(task_id)
+    user = get_current_user()
+
+    # Only the trainer who created it (or group's trainer) can delete
+    if not (user.is_trainer and task.trainer_id == user.id):
+        abort(403)
+
+    db.session.delete(task)
+    db.session.commit()
+    flash(f"{'Объявление' if task.is_announcement else 'Задача'} '{task.title}' удалено.", "info")
+    return redirect(url_for('group_detail', group_id=task.group_id))
+
+# ... (your existing imports and code) ...
+
+@app.route('/groups/<int:group_id>/join', methods=['POST'])
+@login_required
+def join_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    # Prevent joining if already a member
+    if GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first():
+        flash("Вы уже состоите в этой группе.", "info")
+        return redirect(url_for('group_detail', group_id=group.id))
+
+    # Prevent trainer from joining another group as a member
+    if user.is_trainer and user.own_group and user.own_group.id != group_id:
+        flash("Как тренер, вы не можете присоединиться к другой группе.", "error")
+        return redirect(url_for('groups_list'))
+
+
+    member = GroupMember(group=group, user=user)
+    db.session.add(member)
+    db.session.commit()
+    flash(f"Вы успешно присоединились к группе '{group.name}'!", "success")
+    return redirect(url_for('group_detail', group_id=group.id))
+
+@app.route('/groups/<int:group_id>/leave', methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    member = GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first()
+    if not member:
+        flash("Вы не состоите в этой группе.", "info")
+        return redirect(url_for('group_detail', group_id=group.id))
+
+    # Prevent trainers from leaving their own group if they are the trainer
+    if user.is_trainer and group.trainer_id == user.id:
+        flash("Как тренер, вы не можете покинуть свою собственную группу.", "error")
+        return redirect(url_for('group_detail', group_id=group.id))
+
+    db.session.delete(member)
+    db.session.commit()
+    flash(f"Вы покинули группу '{group.name}'.", "success")
+    return redirect(url_for('groups_list'))
+
+# ... (rest of your existing code) ...
+
+# Route for handling image uploads with chat messages
+@app.route('/groups/<int:group_id>/message/image', methods=['POST'])
+@login_required
+def post_group_image_message(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    if not (user.is_trainer and group.trainer_id == user.id or any(m.user_id == user.id for m in group.members)):
+        abort(403)
+
+    text = request.form.get('text', '').strip()
+    file = request.files.get('image') # Assuming input name is 'image'
+
+    image_filename = None
+    if file and file.filename != '':
+        filename = secure_filename(file.filename)
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+        if '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions:
+            image_filename = filename
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            print(f"DEBUG: Saved original image to {filepath}")
+            print(f"DEBUG: Original file size: {os.path.getsize(filepath)} bytes")
+
+            resize_image(filepath, CHAT_IMAGE_MAX_SIZE)  # Resize the image
+            print(f"DEBUG: After resizing, file size: {os.path.getsize(filepath)} bytes")  # Check size AFTER resizing
+        else:
+            flash("Неподдерживаемый формат файла. Разрешены: png, jpg, jpeg, gif.", "error")
+            return redirect(url_for('group_detail', group_id=group_id))
+
+    if text or image_filename:
+        msg = GroupMessage(group=group, user=user, text=text, image_file=image_filename)
+        db.session.add(msg)
+        db.session.commit()
+        flash("Сообщение отправлено!", "success")
+    else:
+        flash("Сообщение не может быть пустым (текст или изображение).", "warning")
+
+    return redirect(url_for('group_detail', group_id=group_id))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+
+{% block head %}
+  <script src="[https://cdn.jsdelivr.net/npm/chart.js](https://cdn.jsdelivr.net/npm/chart.js)"></script>
+  <script defer src="[https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js](https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js)"></script>
+  <style>[x-cloak]{display:none!important;}</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <h1 class="text-3xl font-bold mb-6">Детали пользователя: {{ user.name }} (ID: {{ user.id }})</h1>
+
+    <div class="flex items-center space-x-4 mb-6">
+        <a href="{{ url_for('admin_dashboard') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            ← Назад к панели
+        </a>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-6">
+        <div class="md:col-span-1 bg-white shadow-md rounded-lg p-6 h-fit sticky top-6">
+            <h2 class="text-xl font-semibold mb-4">Информация о пользователе</h2>
+            <form method="post" action="{{ url_for('admin_user_edit', user_id=user.id) }}" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Имя</label>
+                    <input type="text" name="name" value="{{ user.name }}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" name="email" value="{{ user.email }}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Дата рождения</label>
+                    <input type="date" name="date_of_birth" value="{{ user.date_of_birth.isoformat() if user.date_of_birth else '' }}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Новый пароль (оставьте пустым, чтобы не менять)</label>
+                    <input type="password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="is_trainer" name="is_trainer" value="true" {% if user.is_trainer %}checked{% endif %} class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="is_trainer" class="ml-2 block text-sm text-gray-900">Является тренером</label>
+                </div>
+                <div>
+                    <label for="avatar" class="block text-sm font-medium text-gray-700">Аватарка</label>
+                    <input type="file" id="avatar" name="avatar" accept="image/*" class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    {% if user.avatar %}<img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}" alt="Аватар" class="mt-2 w-16 h-16 rounded-full object-cover">{% endif %}
+                </div>
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Сохранить изменения
+                    </button>
+                </div>
+            </form>
+            <form action="{{ url_for('admin_delete_user', user_id=user.id) }}" method="POST" class="mt-4" onsubmit="return confirm('Вы уверены, что хотите удалить пользователя {{ user.name }}? Это действие необратимо.');">
+                <button type="submit" class="w-full justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    Удалить пользователя
+                </button>
+            </form>
+        </div>
+
+        <div class="md:col-span-2 space-y-6">
+
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Статус за сегодня ({{ today.strftime('%d.%m.%Y') }})</h2>
+                <div class="grid grid-cols-2 gap-4 text-center">
+                    <div class="p-4 rounded-lg {{ 'bg-green-100 text-green-800' if has_meal_today else 'bg-red-100 text-red-800' }}">
+                        <div class="font-medium">Питание</div>
+                        <div class="text-lg font-bold">{{ '✔ Заполнено' if has_meal_today else '✘ Нет данных' }}</div>
+                    </div>
+                    <div class="p-4 rounded-lg {{ 'bg-green-100 text-green-800' if has_activity_today else 'bg-red-100 text-red-800' }}">
+                        <div class="font-medium">Активность</div>
+                        <div class="text-lg font-bold">{{ '✔ Заполнено' if has_activity_today else '✘ Нет данных' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">История замеров тела</h2>
+                {% if body_analyses %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Вес (кг)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Мышцы (кг)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жир (кг)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ИМТ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Метаболизм</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {% for analysis in body_analyses %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.timestamp.strftime('%d.%m.%Y %H:%M') }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.weight or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.muscle_mass or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.fat_mass or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.bmi or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ analysis.metabolism or '—' }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-gray-500">Нет данных замеров тела.</p>
+                {% endif %}
+            </div>
+
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">История диет</h2>
+                {% if diets %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Калории (ккал)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Белки (г)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жиры (г)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Углеводы (г)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Детали</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {% for diet_entry in diets %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ diet_entry.date.strftime('%d.%m.%Y') }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ diet_entry.total_kcal or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ diet_entry.protein or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ diet_entry.fat or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ diet_entry.carbs or '—' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <a href="{{ url_for('view_diet', diet_id=diet_entry.id) }}" target="_blank" class="text-blue-600 hover:text-blue-900">Посмотреть</a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-gray-500">Нет данных о диетах.</p>
+                {% endif %}
+            </div>
+
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Активность за последние 30 дней</h2>
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-2">Шаги</h3>
+                    <canvas id="stepsChart"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium mb-2">Активные калории</h3>
+                    <canvas id="kcalChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white shadow-md rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">История приёмов пищи</h2>
+                {% if meal_logs %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тип</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Калории</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Б/Ж/У</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Анализ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {% for meal_log in meal_logs %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ meal_log.date.strftime('%d.%m.%Y') }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{{ meal_log.meal_type }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ meal_log.calories }}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-900">{{ meal_log.protein }}/{{ meal_log.fat }}/{{ meal_log.carbs }}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-900 max-w-xs overflow-hidden text-ellipsis">{{ meal_log.analysis }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-gray-500">Нет данных о приёмах пищи.</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const activityLabels = {{ activity_chart_labels }};
+        const stepsData = {{ activity_steps_values }};
+        const kcalData = {{ activity_kcal_values }};
+        const dietKcalData = {{ diet_kcal_values }};
+
+        // Steps Chart
+        new Chart(document.getElementById('stepsChart'), {
+            type: 'line',
+            data: {
+                labels: activityLabels,
+                datasets: [{
+                    label: 'Шаги',
+                    data: stepsData,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Active Kcal Chart
+        new Chart(document.getElementById('kcalChart'), {
+            type: 'line',
+            data: {
+                labels: activityLabels,
+                datasets: [{
+                    label: 'Активные калории',
+                    data: kcalData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
