@@ -364,8 +364,6 @@ def register():
     return render_template('register.html')
 
 
-# ... (existing imports) ...
-
 @app.route('/profile')
 def profile():
     user_id = session.get('user_id')
@@ -407,15 +405,11 @@ def profile():
 
     # --- NEW: Fetch user's group memberships ---
     user_memberships = GroupMember.query.filter_by(user_id=user.id).all()
-    # If the user is a trainer and owns a group, that's their primary group.
-    # Otherwise, they might be a member of other groups.
     user_joined_group = None
-    if user.own_group:
+    if user.own_group: # If the user is a trainer and owns a group
         user_joined_group = user.own_group
     elif user_memberships:
-        # For simplicity, if a user is a member of multiple groups,
-        # you might choose to show the first one, or modify this to show a list.
-        # For now, let's just pick the first one they are a member of.
+        # If a user is a member of multiple groups, just take the first for now.
         user_joined_group = user_memberships[0].group
 
 
@@ -442,7 +436,6 @@ def profile():
         user_joined_group=user_joined_group
     )
 
-# ... (rest of your existing code) ...
 
 @app.route('/logout')
 def logout():
@@ -1262,13 +1255,13 @@ def registered_chats():
 @app.route("/admin")
 @admin_required # Защита маршрута для админа
 def admin_dashboard():
-    users = User.query.order_by(User.updated_at.desc()).all()
+    users = User.query.order_by(User.id).all() # Order by ID for stable display
     today = date.today()
 
     statuses = {}
     details  = {}
 
-    # Определяем тот же список полей, что и в profile.html
+    # Define metrics consistent with profile.html
     metrics_def = [
         ('Рост', 'height', '📏', 'см', True),
         ('Вес', 'weight', '⚖️', 'кг', False),
@@ -1282,12 +1275,12 @@ def admin_dashboard():
     ]
 
     for u in users:
-        # статусы
+        # statuses
         has_meal     = MealLog.query.filter_by(user_id=u.id, date=today).count() > 0
         has_activity = Activity.query.filter_by(user_id=u.id, date=today).count() > 0
         statuses[u.id] = {'meal': has_meal, 'activity': has_activity}
 
-        # приемы пищи
+        # meals
         meals = MealLog.query.filter_by(user_id=u.id, date=today).all()
         meals_data = [{
             'type': m.meal_type,
@@ -1297,7 +1290,7 @@ def admin_dashboard():
             'carbs':m.carbs
         } for m in meals]
 
-        # активность
+        # activity
         act = Activity.query.filter_by(user_id=u.id, date=today).first()
         activity_data = None
         if act:
@@ -1309,13 +1302,13 @@ def admin_dashboard():
                 'hr_avg':       act.heart_rate_avg
             }
 
-        # анализ тела
+        # body analysis
         last = BodyAnalysis.query.filter_by(user_id=u.id)\
                                   .order_by(BodyAnalysis.timestamp.desc()).first()
         prev = BodyAnalysis.query.filter_by(user_id=u.id)\
                                   .order_by(BodyAnalysis.timestamp.desc()).offset(1).first()
 
-        # собираем массив метрик с дельтами
+        # metrics with deltas
         metrics = []
         for label, field, icon, unit, good_up in metrics_def:
             cur = getattr(last, field, None)
@@ -1326,8 +1319,13 @@ def admin_dashboard():
                 diff = cur - pr
                 if pr != 0:
                     pct = diff / pr * 100
-                arrow = '↑' if diff > 0 else '↓' if diff < 0 else '' # Добавлено для отображения стрелки даже при отсутствии is_good
-                is_good = (diff > 0 and good_up) or (diff < 0 and not good_up)
+                arrow = '↑' if diff > 0 else '↓' if diff < 0 else ''
+                # Handle cases where diff is 0 for arrow display
+                if diff == 0:
+                    arrow = '' # No arrow for no change
+                    is_good = True # Can consider no change as good/neutral
+                else:
+                    is_good = (diff > 0 and good_up) or (diff < 0 and not good_up)
             metrics.append({
                 'label':    label,
                 'icon':     icon,
@@ -1353,6 +1351,53 @@ def admin_dashboard():
         today=today
     )
 
+@app.route("/admin/user/create", methods=["GET", "POST"])
+@admin_required
+def admin_create_user():
+    errors = []
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '').strip()
+        date_str = request.form.get('date_of_birth', '').strip()
+        is_trainer = 'is_trainer' in request.form
+
+        if not name:
+            errors.append("Имя обязательно.")
+        if not email:
+            errors.append("Email обязателен.")
+        if not password or len(password) < 6:
+            errors.append("Пароль обязателен и должен содержать минимум 6 символов.")
+        if User.query.filter_by(email=email).first():
+            errors.append("Этот email уже зарегистрирован.")
+
+        date_of_birth = None
+        if date_str:
+            try:
+                date_of_birth = datetime.strptime(date_str, "%Y-%m-%d").date()
+                if date_of_birth > date.today():
+                    errors.append("Дата рождения не может быть в будущем.")
+            except ValueError:
+                errors.append("Некорректный формат даты рождения.")
+
+        if errors:
+            return render_template('admin_create_user.html', errors=errors, form_data=request.form)
+
+        hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+        new_user = User(
+            name=name,
+            email=email,
+            password=hashed_pw,
+            date_of_birth=date_of_birth,
+            is_trainer=is_trainer
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash(f"Пользователь '{new_user.name}' успешно создан!", "success")
+        return redirect(url_for("admin_dashboard"))
+    return render_template("admin_create_user.html", errors=errors, form_data={})
+
+
 @app.route("/admin/user/<int:user_id>")
 @admin_required
 def admin_user_detail(user_id):
@@ -1361,21 +1406,55 @@ def admin_user_detail(user_id):
         flash("Пользователь не найден", "error")
         return redirect(url_for("admin_dashboard"))
 
-    today = date.today()
-    has_meal     = MealLog.query.filter_by(user_id=user.id,     date=today).count() > 0
-    has_activity = Activity.query.filter_by(user_id=user.id, date=today).count() > 0
+    # Fetch all historical data for the user
+    meal_logs = MealLog.query.filter_by(user_id=user.id).order_by(MealLog.date.desc()).all()
+    activities = Activity.query.filter_by(user_id=user.id).order_by(Activity.date.desc()).all()
+    body_analyses = BodyAnalysis.query.filter_by(user_id=user.id).order_by(BodyAnalysis.timestamp.desc()).all()
+    diets = Diet.query.filter_by(user_id=user.id).order_by(Diet.date.desc()).all()
 
-    meals = MealLog.query\
-            .filter_by(user_id=user.id)\
-            .order_by(MealLog.date.desc())\
-            .all()
+    # Determine current status for today
+    today = date.today()
+    has_meal_today = any(m.date == today for m in meal_logs)
+    has_activity_today = any(a.date == today for a in activities)
+
+    # For charts: last 30 days activity
+    last_30_days = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    activity_chart_labels = [d.strftime("%d.%m") for d in last_30_days]
+    activity_steps_values = []
+    activity_kcal_values = []
+
+    activity_map = {a.date: a for a in activities if a.date in last_30_days} # optimize lookup
+    for d in last_30_days:
+        activity_for_day = activity_map.get(d)
+        activity_steps_values.append(activity_for_day.steps if activity_for_day else 0)
+        activity_kcal_values.append(activity_for_day.active_kcal if activity_for_day else 0)
+
+    # For charts: last 30 days diet (calories)
+    diet_chart_labels = [d.strftime("%d.%m") for d in last_30_days]
+    diet_kcal_values = []
+
+    diet_map = {d.date: d for d in diets if d.date in last_30_days} # optimize lookup
+    for d in last_30_days:
+        diet_for_day = diet_map.get(d)
+        diet_kcal_values.append(diet_for_day.total_kcal if diet_for_day else 0)
+
 
     return render_template(
-        "admin_user.html",
+        "admin_user_detail.html",
         user=user,
-        meals=meals,
-        has_meal=has_meal,
-        has_activity=has_activity
+        meal_logs=meal_logs,
+        activities=activities,
+        body_analyses=body_analyses,
+        diets=diets,
+        has_meal_today=has_meal_today,
+        has_activity_today=has_activity_today,
+        # Chart data
+        activity_chart_labels=json.dumps(activity_chart_labels),
+        activity_steps_values=json.dumps(activity_steps_values),
+        activity_kcal_values=json.dumps(activity_kcal_values),
+        diet_chart_labels=json.dumps(diet_chart_labels),
+        diet_kcal_values=json.dumps(diet_kcal_values),
+        today=today
     )
 
 
@@ -1387,23 +1466,90 @@ def admin_user_edit(user_id):
         flash("Пользователь не найден", "error")
         return redirect(url_for("admin_dashboard"))
 
+    original_email = user.email # Keep original email for unique check
+
     user.name = request.form["name"].strip()
     user.email = request.form["email"].strip()
+    user.is_trainer = 'is_trainer' in request.form # Update trainer status
+
     dob = request.form.get("date_of_birth")
     user.date_of_birth = datetime.strptime(dob, "%Y-%m-%d").date() if dob else None
 
-    # Обработка загрузки аватарки
+    # Handle password change if provided
+    new_password = request.form.get("password")
+    if new_password:
+        if len(new_password) < 6:
+            flash("Новый пароль должен быть не менее 6 символов.", "error")
+            return redirect(url_for("admin_user_detail", user_id=user.id))
+        user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+    # Check for duplicate email only if changed
+    if user.email != original_email and User.query.filter_by(email=user.email).first():
+        flash("Этот email уже занят другим пользователем.", "error")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    # Handle avatar upload
     if 'avatar' in request.files:
         file = request.files['avatar']
         if file.filename != '':
             filename = secure_filename(file.filename)
+            # You might want to delete the old avatar file here if it exists
+            # os.remove(os.path.join(app.config['UPLOAD_FOLDER'], user.avatar))
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
-            user.avatar = filename # Сохраняем только имя файла в БД
+            user.avatar = filename
 
-    db.session.commit()
-    flash("Данные пользователя обновлены", "success")
+    try:
+        db.session.commit()
+        flash("Данные пользователя обновлены", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Ошибка при обновлении пользователя. Возможно, email уже используется.", "error")
+
     return redirect(url_for("admin_user_detail", user_id=user.id))
+
+
+@app.route("/admin/user/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Пользователь не найден.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    if user.email == ADMIN_EMAIL:
+        flash("Вы не можете удалить аккаунт администратора.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    try:
+        # Cascade delete should handle related records (meals, activities, etc.)
+        # Ensure your model relationships have `cascade='all, delete-orphan'` if you want related data to be deleted.
+        # Otherwise, you would manually delete them here:
+        # MealLog.query.filter_by(user_id=user.id).delete()
+        # Activity.query.filter_by(user_id=user.id).delete()
+        # BodyAnalysis.query.filter_by(user_id=user.id).delete()
+        # Diet.query.filter_by(user_id=user.id).delete()
+        # GroupMember.query.filter_by(user_id=user.id).delete()
+        # GroupTask.query.filter_by(trainer_id=user.id).delete() # if they were trainers
+        # GroupMessage.query.filter_by(user_id=user.id).delete()
+        # MessageReaction.query.filter_by(user_id=user.id).delete()
+
+        # If user owns a group, delete the group first or reassign
+        if user.own_group:
+            # Option 1: Delete the group
+            db.session.delete(user.own_group)
+            # Option 2: Reassign the group to admin (if desired)
+            # user.own_group.trainer_id = <ADMIN_USER_ID>
+            # flash("Группа, принадлежащая пользователю, была переназначена администратору (или удалена).", "info")
+
+        db.session.delete(user)
+        db.session.commit()
+        flash(f"Пользователь '{user.name}' и все связанные данные удалены.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Ошибка при удалении пользователя: {e}", "error")
+
+    return redirect(url_for("admin_dashboard"))
 
 @app.route('/groups')
 @login_required
@@ -1604,53 +1750,6 @@ def delete_group_task(task_id):
     flash(f"{'Объявление' if task.is_announcement else 'Задача'} '{task.title}' удалено.", "info")
     return redirect(url_for('group_detail', group_id=task.group_id))
 
-# ... (your existing imports and code) ...
-
-@app.route('/groups/<int:group_id>/join', methods=['POST'])
-@login_required
-def join_group(group_id):
-    group = Group.query.get_or_404(group_id)
-    user = get_current_user()
-
-    # Prevent joining if already a member
-    if GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first():
-        flash("Вы уже состоите в этой группе.", "info")
-        return redirect(url_for('group_detail', group_id=group.id))
-
-    # Prevent trainer from joining another group as a member
-    if user.is_trainer and user.own_group and user.own_group.id != group_id:
-        flash("Как тренер, вы не можете присоединиться к другой группе.", "error")
-        return redirect(url_for('groups_list'))
-
-
-    member = GroupMember(group=group, user=user)
-    db.session.add(member)
-    db.session.commit()
-    flash(f"Вы успешно присоединились к группе '{group.name}'!", "success")
-    return redirect(url_for('group_detail', group_id=group.id))
-
-@app.route('/groups/<int:group_id>/leave', methods=['POST'])
-@login_required
-def leave_group(group_id):
-    group = Group.query.get_or_404(group_id)
-    user = get_current_user()
-
-    member = GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first()
-    if not member:
-        flash("Вы не состоите в этой группе.", "info")
-        return redirect(url_for('group_detail', group_id=group.id))
-
-    # Prevent trainers from leaving their own group if they are the trainer
-    if user.is_trainer and group.trainer_id == user.id:
-        flash("Как тренер, вы не можете покинуть свою собственную группу.", "error")
-        return redirect(url_for('group_detail', group_id=group.id))
-
-    db.session.delete(member)
-    db.session.commit()
-    flash(f"Вы покинули группу '{group.name}'.", "success")
-    return redirect(url_for('groups_list'))
-
-# ... (rest of your existing code) ...
 
 # Route for handling image uploads with chat messages
 @app.route('/groups/<int:group_id>/message/image', methods=['POST'])
@@ -1691,6 +1790,112 @@ def post_group_image_message(group_id):
         flash("Сообщение не может быть пустым (текст или изображение).", "warning")
 
     return redirect(url_for('group_detail', group_id=group_id))
+
+@app.route('/groups/<int:group_id>/join', methods=['POST'])
+@login_required
+def join_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    # Prevent joining if already a member
+    if GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first():
+        flash("Вы уже состоите в этой группе.", "info")
+        return redirect(url_for('group_detail', group_id=group.id))
+
+    # Prevent trainer from joining another group as a member
+    if user.is_trainer and user.own_group and user.own_group.id != group_id:
+        flash("Как тренер, вы не можете присоединиться к другой группе.", "error")
+        return redirect(url_for('groups_list'))
+
+
+    member = GroupMember(group=group, user=user)
+    db.session.add(member)
+    db.session.commit()
+    flash(f"Вы успешно присоединились к группе '{group.name}'!", "success")
+    return redirect(url_for('group_detail', group_id=group.id))
+
+@app.route('/groups/<int:group_id>/leave', methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    user = get_current_user()
+
+    member = GroupMember.query.filter_by(group_id=group.id, user_id=user.id).first()
+    if not member:
+        flash("Вы не состоите в этой группе.", "info")
+        return redirect(url_for('group_detail', group_id=group_id))
+
+    # Prevent trainers from leaving their own group if they are the trainer
+    if user.is_trainer and group.trainer_id == user.id:
+        flash("Как тренер, вы не можете покинуть свою собственную группу.", "error")
+        return redirect(url_for('group_detail', group_id=group_id))
+
+    db.session.delete(member)
+    db.session.commit()
+    flash(f"Вы покинули группу '{group.name}'.", "success")
+    return redirect(url_for('groups_list'))
+
+# --- Admin Group Management ---
+
+@app.route("/admin/groups")
+@admin_required
+def admin_groups_list():
+    groups = Group.query.all()
+    return render_template("admin_groups_list.html", groups=groups)
+
+@app.route("/admin/groups/<int:group_id>/edit", methods=["GET", "POST"])
+@admin_required
+def admin_edit_group(group_id):
+    group = db.session.get(Group, group_id)
+    if not group:
+        flash("Группа не найдена.", "error")
+        return redirect(url_for("admin_groups_list"))
+
+    trainers = User.query.filter_by(is_trainer=True).all() # For assigning new trainer
+
+    if request.method == "POST":
+        group.name = request.form['name'].strip()
+        group.description = request.form.get('description', '').strip()
+        new_trainer_id = request.form.get('trainer_id')
+
+        # Check for unique group name (if you want to enforce this)
+        # existing_group = Group.query.filter(Group.name == group.name, Group.id != group_id).first()
+        # if existing_group:
+        #     flash("Группа с таким названием уже существует.", "error")
+        #     return render_template("admin_edit_group.html", group=group, trainers=trainers)
+
+        if new_trainer_id and int(new_trainer_id) != group.trainer_id:
+            # Check if new trainer already owns a group
+            potential_trainer = db.session.get(User, int(new_trainer_id))
+            if potential_trainer and potential_trainer.own_group and potential_trainer.own_group.id != group_id:
+                flash(f"Тренер {potential_trainer.name} уже руководит другой группой.", "error")
+                return render_template("admin_edit_group.html", group=group, trainers=trainers)
+            group.trainer_id = int(new_trainer_id)
+            group.trainer.is_trainer = True # Ensure new trainer is marked as trainer
+
+        db.session.commit()
+        flash("Группа успешно обновлена.", "success")
+        return redirect(url_for("admin_groups_list"))
+
+    return render_template("admin_edit_group.html", group=group, trainers=trainers)
+
+
+@app.route("/admin/groups/<int:group_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_group(group_id):
+    group = db.session.get(Group, group_id)
+    if not group:
+        flash("Группа не найдена.", "error")
+        return redirect(url_for("admin_groups_list"))
+
+    try:
+        db.session.delete(group) # Cascade will delete members, messages, tasks
+        db.session.commit()
+        flash(f"Группа '{group.name}' и все связанные данные удалены.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Ошибка при удалении группы: {e}", "error")
+    return redirect(url_for("admin_groups_list"))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
