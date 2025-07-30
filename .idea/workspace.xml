@@ -4,26 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3fd51ef2-c522-4b09-b8bb-159666be30fe" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/instance/db_update.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_Create_user.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_dashboard.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_edit_group.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_groups_list.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_user.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin_user_Detail.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/group_detail.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/group_new.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/groups_list.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/instance/35healthclubs.db" beforeDir="false" afterPath="$PROJECT_DIR$/instance/35healthclubs.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/render.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/render.yaml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/base.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/profile.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/profile.html" afterDir="false" />
-    </list>
+    <list default="true" id="3fd51ef2-c522-4b09-b8bb-159666be30fe" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
