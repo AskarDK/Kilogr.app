@@ -2,6 +2,9 @@
 {% block content %}
 
 <style>
+
+    .progress-bar-animate { transition: width 0.5s ease-out; }
+
   /* Общие анимации */
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out;
@@ -92,9 +95,222 @@
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 </style>
+<style>
+  :root {
+    --brand-primary: #3b82f6; /* blue-500 */
+    --brand-secondary: #6366f1; /* indigo-500 */
+    --surface-ground: #f8fafc; /* slate-50 */
+    --surface-card: #ffffff;
+    --text-primary: #1e293b; /* slate-800 */
+    --text-secondary: #64748b; /* slate-500 */
+    --border-soft: #e2e8f0; /* slate-200 */
+  }
+
+  /* --- Base & Layout --- */
+  body {
+    background-color: var(--surface-ground);
+    color: var(--text-primary);
+  }
+
+  .page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+
+  /* --- Animations --- */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  /* --- Card Component --- */
+  .card {
+    background-color: var(--surface-card);
+    border-radius: 1rem; /* 16px */
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    transition: all 0.3s ease-in-out;
+  }
+  .card:hover {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.07);
+    transform: translateY(-2px);
+  }
+
+  /* --- Navigation Tabs --- */
+  .nav-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 2rem;
+  }
+  .nav-tab {
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .nav-tab:hover {
+    color: var(--brand-primary);
+  }
+  .nav-tab.active {
+    color: var(--brand-primary);
+    border-bottom-color: var(--brand-primary);
+  }
+
+  /* --- Buttons --- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background-color: var(--brand-primary);
+    color: white;
+  }
+  .btn-primary:hover {
+    background-color: #2563eb; /* blue-600 */
+  }
+  .btn-secondary {
+    background-color: var(--surface-ground);
+    color: var(--text-primary);
+    border-color: var(--border-soft);
+  }
+  .btn-secondary:hover {
+    background-color: #f1f5f9; /* slate-100 */
+    border-color: #cbd5e1; /* slate-300 */
+  }
+
+  /* --- Forms --- */
+  .form-input {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 0.5rem;
+    background-color: #f8fafc;
+    transition: all 0.2s ease;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+  .selection-card {
+    padding: 1rem;
+    border: 2px solid var(--border-soft);
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .selection-card:hover {
+    border-color: var(--brand-secondary);
+    background-color: #f0fdfa; /* light teal for hover */
+  }
+  .selection-card.selected {
+    border-color: var(--brand-primary);
+    background-color: #eff6ff; /* light blue */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  /* --- Progress Bar --- */
+  .progress-bar-bg {
+    background-color: #e5e7eb; /* gray-200 */
+    border-radius: 9999px;
+    height: 0.75rem;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    background-image: linear-gradient(to right, #fb923c, #f97316); /* orange-400 to orange-500 */
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .flip-card {
+  background-color: transparent;
+  width: 100%;
+  height: 280px; /* Задайте фиксированную высоту */
+  perspective: 1000px;
+}
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+/* Класс для активации флипа */
+.flip-card.is-flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+.flip-card-front, .flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1rem; /* 16px */
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+.flip-card-front {
+  background-color: var(--surface-card);
+}
+.flip-card-back {
+  background-color: #f3f4f6; /* gray-100 */
+  color: var(--text-primary);
+  transform: rotateY(180deg);
+  padding: 1.5rem;
+  justify-content: flex-start; /* 1. Прижимаем контент к верху */
+  overflow-y: auto;          /* 2. Добавляем вертикальную прокрутку */
+}
+
+/* 3. (Опционально) Делаем скроллбар красивее */
+.flip-card-back::-webkit-scrollbar {
+  width: 6px;
+}
+.flip-card-back::-webkit-scrollbar-track {
+  background: transparent;
+}
+.flip-card-back::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  border: 3px solid transparent;
+}
+</style>
 <div class="max-w-7xl mx-auto px-4 py-6">
 
-  <div class="flex flex-wrap gap-2 border-b mb-6 overflow-x-auto scrollbar-hide px-1">
+    <div id="infoBanner" class="relative bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl p-6 mb-6 shadow-lg animate-fade-in">
+    <button onclick="hideBanner()" class="absolute top-3 right-4 text-white/70 hover:text-white text-2xl font-bold">&times;</button>
+
+    <div class="flex items-center">
+        <div class="hidden sm:block mr-5 text-4xl opacity-80">⌚️</div>
+        <div>
+            <h3 class="font-bold text-xl">Добро пожаловать в экосистему Kilogr.app!</h3>
+            <p class="mt-1 text-white/90">Получили свои умные весы и часы? Они помогут вам автоматически отслеживать прогресс и достигать целей еще быстрее.</p>
+            <a href="#" class="inline-block mt-3 text-sm font-semibold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors">Узнать больше о наших устройствах</a>
+        </div>
+    </div>
+</div>
+
+<div id="restoreBannerContainer" class="text-center mb-6" style="display: none;">
+    <button onclick="showBanner()" class="text-sm text-blue-600 hover:underline font-semibold">Показать приветственное сообщение</button>
+</div>
+    <div class="flex flex-wrap gap-2 border-b mb-6 overflow-x-auto scrollbar-hide px-1">
     <a href="/profile"
        class="px-4 py-2 font-medium {% if request.path == '/profile' %}border-b-2 border-blue-500 text-blue-600{% else %}text-gray-500 hover:text-gray-700{% endif %}">
       Профиль
@@ -113,651 +329,555 @@
     </a>
   </div>
 
-  {% if request.path == '/profile' %}
-  <div class="space-y-6">
+{% if request.path == '/profile' %}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
 
-    {% if user.telegram_chat_id %}
-    <div class="flex justify-between items-center bg-green-50 border border-green-200 p-5 rounded-xl shadow-sm">
-      <div class="text-green-800 text-sm">
-        ✅ <strong>Telegram:</strong> Привязан
-      </div>
-      <button onclick="openTelegramModal()" class="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm">
-        🔄 Сменить
-      </button>
+<div class="lg:col-span-1 space-y-6">
+
+    <div class="card p-6">
+        <div class="relative text-center">
+
+            <div class="absolute top-0 right-0">
+                <button onclick="openTelegramModal()" title="Статус Telegram" class="p-2 rounded-full hover:bg-slate-100 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6
+                        {% if user.telegram_chat_id %}
+                            text-green-500 {% else %}
+                            text-slate-400 hover:text-slate-600 {% endif %}"
+                        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4" />
+                    </svg>
+                </button>
+            </div>
+
+            {% if user.avatar %}
+              <img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}" alt="Avatar" class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-blue-200 shadow-lg object-cover">
+            {% else %}
+              <img src="https://www.svgrepo.com/show/452070/user-avatar.svg" alt="Default Avatar" class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-gray-200 shadow-lg">
+            {% endif %}
+            <h2 class="mt-5 text-xl font-bold text-slate-900">{{ user.name }}</h2>
+<p class="text-sm text-slate-500">{{ user.email }}</p>
+<div class="mt-4">
+    <button onclick="openEditProfileModal()" class="btn btn-secondary w-full text-sm">
+        Редактировать профиль
+    </button>
+</div>
+        </div>
+
+        <hr class="my-5 border-slate-200">
+
+        <div>
+            <div class="flex justify-between items-center cursor-pointer" id="metrics-header">
+              <h3 class="text-base font-bold text-slate-800">📊 Ключевые показатели</h3>
+              <button class="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800">
+                <span id="metrics-toggle-text">Все данные</span>
+                <svg id="metrics-toggle-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 transition-transform duration-300 rotate-180">
+                  <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06 0L10 9.06l-3.71 3.73a.75.75 0 11-1.06-1.06l4.24-4.25a.75.75 0 011.06 0l4.24 4.25a.75.75 0 010 1.06z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            <div id="metrics-icons-view" class="mt-4 grid grid-cols-3 gap-3 text-center">
+              {% set key_metrics = [('weight', '⚖️', 'Вес'), ('muscle_mass', '💪', 'Мышцы'), ('fat_mass', '🧈', 'Жир')] %}
+              {% for field, icon, label in key_metrics %}
+                {% set value = latest_analysis[field] if latest_analysis else '—' %}
+                <div class="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    <div class="text-sm text-slate-500">{{ label }}</div>
+                    <div class="text-xl font-bold text-slate-800 mt-1">{{ value|round(1) }}</div>
+                </div>
+              {% endfor %}
+            </div>
+            <div id="metrics-details-view" class="hidden mt-4 space-y-3">
+              {% set metrics = [
+                  ('Рост', 'height', '📏', 'см',  True), ('Вес', 'weight', '⚖️', 'кг',  False),
+                  ('Мышцы', 'muscle_mass', '💪', 'кг',  True), ('Жир', 'fat_mass', '🧈', 'кг',  False),
+                  ('Вода', 'body_water', '💧', '%',  True), ('Метаболизм', 'metabolism', '⚡', 'ккал',True),
+                  ('Белок', 'protein_percentage', '🥚', '%',  True), ('Висц. жир', 'visceral_fat_rating', '🔥', '',   False),
+                  ('ИМТ', 'bmi', '📐', '',   False)
+              ] %}
+              {% for label, field, icon, unit, good_up in metrics %}
+                {% set cur = latest_analysis[field] if latest_analysis else none %}
+                {% if cur is not none %}
+                  <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div class="flex items-center">
+                      <span class="text-xl mr-3">{{ icon }}</span>
+                      <div>
+                        <div class="font-semibold text-slate-700">{{ label }}</div>
+                        <div class="text-xl font-bold text-slate-900">{{ cur|round(1) }}<span class="text-sm font-medium text-slate-400 ml-1">{{ unit }}</span></div>
+                      </div>
+                    </div>
+                    {% set prev = previous_analysis[field] if previous_analysis else none %}
+                    {% if prev is not none %}{% set cur_f, prev_f = cur|float, prev|float %}{% set diff = cur_f - prev_f %}{% if diff != 0 %}{% set arrow, is_good = ('↑', good_up) if diff > 0 else ('↓', not good_up) %}<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold {% if is_good %} bg-green-100 text-green-700 {% else %} bg-red-100 text-red-700 {% endif %}">{{ arrow }} {{ diff|abs|round(1) }}{{ unit }}</span>{% endif %}{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              {% if user.analysis_comment %}<div class="!mt-5 p-4 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800"><strong class="font-semibold">💬 AI-комментарий:</strong> {{ user.analysis_comment }}</div>{% endif %}
+            </div>
+        </div>
     </div>
-    {% else %}
-    <div class="flex justify-between items-center bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-sm">
-      <div class="text-blue-800 text-sm">
-        📲 <strong>Telegram:</strong> Не привязан
-      </div>
-      <button onclick="openTelegramModal()" class="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm">
-        🔑 Привязать
-      </button>
+
+    {% if not user.telegram_chat_id %}
+    <div class="card p-6 bg-blue-50 border-blue-200 text-center">
+        <h3 class="font-bold text-blue-800">Получайте уведомления в Telegram</h3>
+        <p class="text-sm text-blue-700 mt-1 mb-4">Привяжите аккаунт, чтобы получать диету и напоминания прямо в мессенджер.</p>
+        <button onclick="openTelegramModal()" class="btn btn-primary w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4" /></svg>
+            Привязать Telegram
+        </button>
     </div>
     {% endif %}
 
-    <div class="grid md:grid-cols-2 gap-6 items-start">
+    <div class="card p-6">
+        <h3 class="text-lg font-bold mb-3 text-slate-800">Сообщество</h3>
+        {% if user_joined_group %}
+          <a href="{{ url_for('group_detail', group_id=user_joined_group.id) }}" class="block p-4 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg hover:shadow-xl transition-shadow">
+            <span class="font-semibold text-lg">Моя группа: {{ user_joined_group.name }}</span>
+            {% if user_joined_group.description %}<p class="text-sm opacity-80 mt-1">{{ user_joined_group.description }}</p>{% endif %}
+            <span class="block text-xs mt-3 opacity-90">Перейти в группу →</span>
+          </a>
+        {% else %}
+          <div class="text-center p-4 border-2 border-dashed border-slate-300 rounded-lg">
+            <p class="text-slate-600 mb-3">Вы еще не в группе. Найдите свою команду!</p>
+            <a href="{{ url_for('groups_list') }}" class="btn btn-primary w-full">Вступить или создать</a>
+          </div>
+        {% endif %}
+    </div>
 
-      <div class="space-y-6">
-        <div class="text-center bg-white p-6 rounded-xl shadow">
-          {% if user.avatar %}
-            <img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}"
-                 alt="Avatar"
-                 class="w-28 h-28 mx-auto rounded-full border-4 border-blue-500 shadow-md mb-4 object-cover">
-          {% else %}
-            <img src="https://www.svgrepo.com/show/452070/user-avatar.svg"
-                 alt="Default Avatar"
-                 class="w-28 h-28 mx-auto rounded-full border-4 border-blue-500 shadow-md mb-4">
-          {% endif %}
-          <h2 class="text-lg font-semibold">{{ user.name }}</h2>
-          <p class="text-sm text-gray-500">{{ user.email }}</p>
+    <div class="card p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-3">Новый замер тела</h3>
+        <form id="uploadForm" action="/upload_analysis" method="POST" enctype="multipart/form-data">
+              <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              <button type="submit" class="btn btn-primary w-full mt-3">Загрузить и обновить</button>
+        </form>
+    </div>
+</div>
+    <div class="lg:col-span-2 space-y-6">
+
+      {% if fat_loss_progress %}
+      <div class="card p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-1">🔥 Прогресс жиросжигания</h3>
+        <p class="text-sm text-slate-500 mb-4">На основе суммарного дефицита калорий.</p>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" style="width: {{ fat_loss_progress.percentage }}%;"></div>
         </div>
-
-        <div class="group-card-container relative rounded-2xl overflow-hidden shadow-lg transition-all duration-300">
-          {% if user_joined_group %}
-            <a href="{{ url_for('group_detail', group_id=user_joined_group.id) }}"
-               class="block p-4 text-white text-center font-medium relative z-10
-                      flex flex-col items-center justify-center min-h-[100px] text-lg overflow-hidden">
-                <div class="absolute inset-0 bg-gradient-to-br from-blue-700 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse-background"></div>
-
-                <span class="z-10 relative flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.125-.935c.515-.233 1.053-.474 1.55-.776v-.602c0-5.75-3.007-10.75-7.5-14.072A9.262 9.262 0 0 0 15 1.827V19.128z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 10.25a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 18.25a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z" />
-                    </svg>
-                    Моя группа: {{ user_joined_group.name }}
-                </span>
-                {% if user_joined_group.description %}
-                    <span class="z-10 relative text-sm opacity-90 mt-1">{{ user_joined_group.description }}</span>
-                {% endif %}
-                <span class="z-10 relative text-xs opacity-70 mt-3 border border-white/30 px-3 py-1 rounded-full backdrop-blur-sm">Перейти в группу</span>
-            </a>
-          {% else %}
-            <a href="{{ url_for('groups_list') }}"
-               class="block p-4 text-gray-800 text-center font-medium relative z-10
-                      flex flex-col items-center justify-center min-h-[100px] text-lg overflow-hidden">
-                <div class="absolute inset-0 bg-gray-100 opacity-90 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <div class="absolute inset-0 bg-gradient-to-br from-blue-200 to-gray-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse-background"></div>
-
-                <span class="z-10 relative flex items-center gap-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 text-blue-600">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.75V6.25c0-1.036-.84-1.875-1.875-1.875h-9.25c-1.036 0-1.875.84-1.875 1.875v12.5c0 1.036.84 1.875 1.875 1.875h9.25c1.036 0 1.875-.84 1.875-1.875zm-6-8.25c0-.414-.336-.75-.75-.75H7.5c-.414 0-.75.336-.75.75s.336.75.75.75h3.75c.414 0 .75-.336.75-.75z" />
-                    </svg>
-                    Вы не состоите в группе
-                </span>
-                <span class="z-10 relative text-sm opacity-90 mt-1 text-gray-600">Присоединяйтесь или создайте свою!</span>
-                <span class="z-10 relative text-xs opacity-70 mt-3 border border-gray-400/30 px-3 py-1 rounded-full backdrop-blur-sm">Вступить в группу</span>
-            </a>
-          {% endif %}
+        <div class="flex justify-between items-center mt-2 text-sm font-medium">
+          <span class="text-slate-500">Старт: {{ fat_loss_progress.initial_kg|round(1) }} кг</span>
+          <span class="font-bold text-orange-600">{{ fat_loss_progress.percentage|round(1) }}%</span>
+          <span class="text-slate-500">Цель: {{ fat_loss_progress.goal_kg|round(1) }} кг</span>
         </div>
-
-
-        <div class="bg-white rounded-xl shadow p-4 transition-all duration-300 group" id="analysisCard">
-          {% if user.height and user.weight %}
-            <button onclick="toggleAnalysisForm()" type="button"
-                    class="w-full flex items-center justify-between p-4 rounded-lg border border-blue-100 bg-blue-50 hover:bg-blue-100 text-sm font-medium text-blue-700 transition">
-              <div class="flex items-center gap-3">
-                <span class="text-xl">📥</span>
-                <span>Сделать новый замер</span>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 group-hover:rotate-180"
-                   fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M19 9l-7 7-7-7"/>
-              </svg>
-            </button>
-
-            <form id="uploadForm" action="/upload_analysis" method="POST" enctype="multipart/form-data"
-                  class="hidden mt-4 border-t pt-4 space-y-4 animate-fade-in">
-              <div>
-                <label class="block text-sm text-gray-600 mb-1">Загрузите фото или PDF анализа</label>
-                <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
-                       class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
-              </div>
-              <button type="submit"
-                      class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
-                🔄 Отправить
-              </button>
-              <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
-            </form>
-
-          {% else %}
-            <form action="/upload_analysis" method="POST" enctype="multipart/form-data" class="space-y-4">
-              <label class="block text-sm text-gray-600 mb-1">Загрузить анализ тела</label>
-              <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" required
-                     class="w-full p-2 text-sm border rounded focus:ring focus:ring-blue-200">
-              <button type="submit"
-                      class="w-full py-2 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 transition">
-                Загрузить
-              </button>
-              <div id="loading" class="text-center text-xs text-gray-400 hidden">Обрабатываем файл через AI...</div>
-            </form>
-          {% endif %}
+        <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <div class="text-xs text-slate-500">Сожжено</div>
+                <div class="text-lg font-bold text-green-600">{{ fat_loss_progress.burned_kg|round(2) }} кг</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <div class="text-xs text-slate-500">Осталось</div>
+                <div class="text-lg font-bold text-red-600">{{ (fat_loss_progress.total_to_lose_kg - fat_loss_progress.burned_kg)|round(2) }} кг</div>
+            </div>
+             <div class="bg-slate-50 rounded-lg p-3 border border-slate-200 col-span-2 sm:col-span-1">
+                <div class="text-xs text-slate-500">Расчетный вес жира</div>
+                <div class="text-lg font-bold text-slate-700">{{ fat_loss_progress.current_kg|round(1) }} кг</div>
+            </div>
         </div>
       </div>
+      {% endif %}
 
-      <div class="space-y-6">
+      <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-slate-800">📈 Ваш рацион</h3>
+            {% if diet %}
+            <form action="/reset_diet" method="POST">
+              <button type="submit" class="text-sm font-semibold text-red-500 hover:text-red-700">Пересоздать</button>
+            </form>
+            {% endif %}
+        </div>
 
-        <div class="bg-white p-6 rounded-xl shadow space-y-6">
-          <h3 class="text-xl font-semibold text-gray-800">📊 Показатели тела</h3>
-          {# 1. Определяем метрики и флаг: True если рост вверх — это хорошо #}
-          {% set metrics = [
-            ('Рост',        'height',              '📏', 'см',  True),
-            ('Вес',         'weight',              '⚖️', 'кг',  False),
-            ('Мышцы',       'muscle_mass',         '💪', 'кг',  True),
-            ('Жир',         'fat_mass',            '🧈', 'кг',  False),
-            ('Вода',        'body_water',          '💧', '%',  True),
-            ('Метаболизм',  'metabolism',          '⚡', 'ккал',True),
-            ('Белок',       'protein_percentage',  '🥚', '%',  True),
-            ('Висц. жир',   'visceral_fat_rating', '🔥', '',   False),
-            ('ИМТ',         'bmi',                 '📐', '',   False)
-          ] %}
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {% for label, field, icon, unit, good_up in metrics %}
-              {% set cur = latest_analysis[field] if latest_analysis else none %}
-              {% set prev = previous_analysis[field] if previous_analysis else none %}
-              {% if cur is not none and prev is not none %}
-                {% set cur = cur|float %}
-                {% set prev = prev|float %}
-                {% set diff = cur - prev %}
-                {% set pct = (diff / prev * 100) if prev != 0 else none %}
-                {% if diff > 0 %}
-                  {% set arrow = '↑' %}
-                  {% set is_good = good_up %}
-                {% else %}
-                  {% set arrow = '↓' %}
-                  {% set is_good = not good_up %}
-                {% endif %}
+        {% if diet %}
+          <a href="/diet" class="block space-y-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-slate-700">
+                <div class="bg-green-50 py-2 rounded-lg border border-green-200"><div class="text-xs text-green-800">Калории</div><div class="font-bold">{{ diet.total_kcal }} ккал</div></div>
+                <div class="bg-blue-50 py-2 rounded-lg border border-blue-200"><div class="text-xs text-blue-800">Белки</div><div class="font-bold">{{ diet.protein }} г</div></div>
+                <div class="bg-yellow-50 py-2 rounded-lg border border-yellow-200"><div class="text-xs text-yellow-800">Жиры</div><div class="font-bold">{{ diet.fat }} г</div></div>
+                <div class="bg-purple-50 py-2 rounded-lg border border-purple-200"><div class="text-xs text-purple-800">Углеводы</div><div class="font-bold">{{ diet.carbs }} г</div></div>
+            </div>
+            {% for meal_name, meal_items in {
+                '🍳 Завтрак': breakfast, '🍲 Обед': lunch, '🍝 Ужин': dinner, '🍎 Перекус': snack
+            }.items() %}
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div class="font-semibold text-slate-700 mb-2 text-sm">{{ meal_name }}</div>
+              <ul class="space-y-1 text-sm text-slate-600">
+              {% for itm in meal_items %}
+                <li class="flex justify-between"><span>{{ itm.name }}</span><span class="text-xs text-slate-500">{{ itm.grams }}г, {{ itm.kcal }} ккал</span></li>
               {% else %}
-                {% set diff = none %}
-              {% endif %}
-
-              <div class="bg-gray-50 p-4 rounded-lg shadow flex flex-col justify-between text-center">
-                <div class="text-sm text-gray-500 mb-1 flex items-center justify-center gap-1">
-                  <span>{{ icon }}</span> {{ label }}
-                </div>
-                <div class="text-lg font-semibold text-gray-800 mt-auto">
-                  {{ cur or 'n/a' }}{% if cur and unit %}<span class="text-sm text-gray-500">{{ unit }}</span>{% endif %}
-                </div>
-
-                {% if diff is not none %}
-                  <div>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-                                 {% if is_good %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-                      {{ arrow }} {{ diff|abs|round(1) }}{{ unit }}
-                      {% if pct is not none %} ({{ pct|abs|round(1) }}%){% endif %}
-                    </span>
+                 <li class="text-slate-400 text-xs">Нет блюд в этом приёме.</li>
+              {% endfor %}
+              </ul>
+            </div>
+            {% endfor %}
+          </a>
+{% elif latest_analysis and latest_analysis.height and latest_analysis.weight and latest_analysis.muscle_mass and latest_analysis.fat_mass and latest_analysis.metabolism %}
+          <form id="dietForm" class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium mb-2 text-slate-700">Ваша цель</label>
+              <div class="grid grid-cols-3 gap-3">
+                {% for g in [{'label': 'Набор', 'icon': '💪', 'value': 'muscle'},{'label': 'Похудение', 'icon': '🔥', 'value': 'loss'},{'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain'}] %}
+                  <div class="selection-card text-center" data-group="goal" data-value="{{ g.value }}">
+                    <div class="text-3xl">{{ g.icon }}</div><div class="text-sm mt-1 font-semibold">{{ g.label }}</div>
                   </div>
-                {% endif %}
+                {% endfor %}
+              </div>
+              <input type="hidden" name="goal" id="goalInput">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2 text-slate-700">Ваш пол</label>
+              <div class="grid grid-cols-2 gap-3">
+                {% for g in [{'label': 'Мужской', 'icon': '♂️', 'value': 'male'},{'label': 'Женский', 'icon': '♀️', 'value': 'female'}] %}
+                  <div class="selection-card text-center" data-group="gender" data-value="{{ g.value }}">
+                    <span class="text-xl mr-2">{{ g.icon }}</span><span class="font-semibold">{{ g.label }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="gender" id="genderInput">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2 text-slate-700">Предпочтения (не обязательно)</label>
+              <textarea name="preferences" rows="2" class="form-input" placeholder="Например: без рыбы, больше курицы"></textarea>
+            </div>
+            <button type="button" onclick="startDietGeneration()" class="btn btn-primary w-full">✨ Сгенерировать рацион</button>
+          </form>
+        {% else %}
+          <p class="text-center text-slate-500 py-8">Пожалуйста, загрузите свой анализ тела, чтобы мы могли сгенерировать для вас персональный рацион.</p>
+        {% endif %}
+      </div>
+
+
+
+  </div>
+
+   {% elif request.path == '/metrics' %}
+  <div class="space-y-6 animate-fade-in">
+    <div class="card p-6">
+      <h2 class="text-xl font-bold mb-4">Баланс калорий за сегодня</h2>
+      {% if missing_meals or missing_activity %}
+        <div class="text-center py-8 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h3 class="font-semibold text-yellow-800">Недостаточно данных для расчета</h3>
+          <p class="text-sm text-yellow-700 mt-1">Пожалуйста, заполните следующую информацию:</p>
+          <ul class="list-disc list-inside text-sm text-yellow-700 mt-2">
+            {% if missing_meals %}<li>Приёмы пищи за сегодня</li>{% endif %}
+            {% if missing_activity %}<li>Данные активности за сегодня</li>{% endif %}
+          </ul>
+        </div>
+      {% else %}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div class="bg-slate-50 p-4 rounded-lg"><div class="text-sm text-slate-500">Метаболизм</div><div class="text-2xl font-bold text-slate-800">{{ metabolism }}</div><span class="text-xs text-slate-500">ккал</span></div>
+          <div class="bg-slate-50 p-4 rounded-lg"><div class="text-sm text-slate-500">Активность</div><div class="text-2xl font-bold text-blue-600">+ {{ active_kcal }}</div><span class="text-xs text-slate-500">ккал</span></div>
+          <div class="bg-slate-50 p-4 rounded-lg"><div class="text-sm text-slate-500">Потреблено</div><div class="text-2xl font-bold text-orange-600">- {{ total_meals }}</div><span class="text-xs text-slate-500">ккал</span></div>
+          <div class="bg-green-50 p-4 rounded-lg border border-green-200"><div class="text-sm text-green-700">Дефицит</div><div class="text-2xl font-bold text-green-600">{{ deficit }}</div><span class="text-xs text-green-600">ккал</span></div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <div class="card p-6">
+          <h3 class="text-lg font-bold mb-4">🏃‍♂️ Активность сегодня</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm text-slate-500">Шаги</div><div class="text-xl font-bold">{{ steps or '—' }}</div></div>
+            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm text-slate-500">Дистанция</div><div class="text-xl font-bold">{{ distance_km or '—' }} <span class="text-sm">км</span></div></div>
+            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm text-slate-500">Актив. калории</div><div class="text-xl font-bold">{{ active_kcal or '—' }}</div></div>
+            <div class="bg-slate-50 p-4 rounded-lg text-center"><div class="text-sm text-slate-500">Калории покоя</div><div class="text-xl font-bold">{{ resting_kcal or '—' }}</div></div>
+          </div>
+        </div>
+
+        <div class="card p-6">
+          <h3 class="text-lg font-bold mb-4">🍽️ Приёмы пищи сегодня</h3>
+          {% if today_meals %}
+          <div class="grid grid-cols-2 gap-4">
+            {% for meal in today_meals %}
+              <div class="bg-slate-50 p-4 rounded-lg text-center">
+                <div class="text-sm text-slate-500 font-semibold">{{ meal.meal_type|capitalize }}</div>
+                <div class="mt-1 text-xl font-bold">{{ meal.calories }} <span class="text-sm">ккал</span></div>
               </div>
             {% endfor %}
           </div>
-
-          {% if user.analysis_comment %}
-          <div class="bg-blue-50 border border-blue-200 p-4 rounded text-sm text-blue-800">
-            💬 <strong>AI-комментарий:</strong> {{ user.analysis_comment }}
-          </div>
-          {% endif %}
-        </div>
-
-        <div class="bg-white p-6 rounded-xl shadow space-y-6">
-          <h3 class="text-xl font-semibold text-gray-800">📈 Ваш рацион</h3>
-
-          {% if diet %}
-            <a href="/diet" class="block transform hover:scale-[1.01] transition duration-200">
-              <div class="bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-6 rounded-2xl shadow-lg space-y-4">
-                <div class="flex justify-between items-center">
-                  <div class="text-sm text-blue-800 font-medium">
-                    🗓️ Рацион за {{ diet.date.strftime('%d.%m.%Y') }}
-                  </div>
-                  <div class="text-xs text-gray-500 italic">Нажмите для подробностей</div>
-                </div>
-
-                {% for meal_name, meal_items in {
-                  '🍳 Завтрак': breakfast,
-                  '🍲 Обед': lunch,
-                  '🍝 Ужин': dinner,
-                  '🍎 Перекус': snack
-                }.items() %}
-                  <div class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-                    <div class="text-sm font-semibold text-gray-700 mb-2">{{ meal_name }}</div>
-                    <ul class="space-y-1 text-sm text-gray-600">
-                      {% for itm in meal_items %}
-                        <li class="flex justify-between">
-                          <span>{{ itm.name }}</span>
-                          <span class="text-right text-xs text-gray-500">
-                            {{ itm.grams }} г, {{ itm.kcal }} ккал
-                          </span>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  </div>
-                {% endfor %}
-
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-center text-gray-700 mt-2">
-                  <div class="bg-green-50 py-2 rounded-lg">
-                    <div class="text-xs text-green-800">Калории</div>
-                    <div class="font-bold text-green-700">{{ diet.total_kcal }} ккал</div>
-                  </div>
-                  <div class="bg-blue-50 py-2 rounded-lg">
-                    <div class="text-xs text-blue-800">Белки</div>
-                    <div class="font-bold text-blue-700">{{ diet.protein }} г</div>
-                  </div>
-                  <div class="bg-yellow-50 py-2 rounded-lg">
-                    <div class="text-xs text-yellow-800">Жиры</div>
-                    <div class="font-bold text-yellow-700">{{ diet.fat }} г</div>
-                  </div>
-                  <div class="bg-purple-50 py-2 rounded-lg">
-                    <div class="text-xs text-purple-800">Углеводы</div>
-                    <div class="font-bold text-purple-700">{{ diet.carbs }} г</div>
-                  </div>
-                </div>
-              </div>
-            </a>
-
-            <form action="/reset_diet" method="POST" class="text-right">
-              <button type="submit" class="text-sm text-red-600 underline hover:text-red-800">Перегенерировать диету</button>
-            </form>
-
-          {% elif user.height and user.weight and user.muscle_mass %}
-            <form id="dietForm" class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium mb-2">Комментарий / предпочтения</label>
-                <textarea name="preferences" rows="2"
-                          class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></textarea>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-2">Цель</label>
-                <div class="flex gap-4">
-                  {% for g in [
-                    {'label': 'Набор', 'icon': '💪', 'value': 'muscle'},
-                    {'label': 'Похудение', 'icon': '🔥', 'value': 'loss'},
-                    {'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain'}
-                  ] %}
-                    <div class="goal-card flex flex-col items-center p-4 rounded-lg border cursor-pointer hover:shadow"
-                         data-value="{{ g.value }}">
-                      <div class="text-2xl">{{ g.icon }}</div>
-                      <div class="text-sm mt-1">{{ g.label }}</div>
-                    </div>
-                  {% endfor %}
-                </div>
-                <input type="hidden" name="goal" id="goalInput">
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-2">Пол</label>
-                <div class="flex gap-4">
-                  {% for g in [
-                    {'label': 'Мужской', 'icon': '♂️', 'value': 'male'},
-                    {'label': 'Женский', 'icon': '♀️', 'value': 'female'}
-                  ] %}
-                    <div class="gender-card flex items-center justify-center p-4 rounded-lg border cursor-pointer hover:shadow"
-                         data-value="{{ g.value }}">
-                      <div class="text-xl mr-2">{{ g.icon }}</div>
-                      <div class="text-sm">{{ g.label }}</div>
-                    </div>
-                  {% endfor %}
-                </div>
-                <input type="hidden" name="gender" id="genderInput">
-              </div>
-
-              <button type="button" onclick="startDietGeneration()"
-                      class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
-                Сгенерировать диету
-              </button>
-            </form>
           {% else %}
-            <p class="text-sm text-gray-500">Пожалуйста, загрузите анализ тела для генерации диеты.</p>
+            <p class="text-center text-slate-500 py-6">Нет данных о приёмах пищи за сегодня.</p>
           {% endif %}
         </div>
-
-      </div>
     </div>
-
-  {% elif request.path == '/metrics' %}
-  <div class="space-y-6">
-
-    <div class="bg-white p-6 rounded-xl shadow">
-      <h2 class="text-xl font-semibold mb-4">📈 Дефицит калорий за сегодня</h2>
-
-      {% if missing_meals or missing_activity %}
-        <p class="text-gray-600">Чтобы посчитать дефицит, нужны данные:</p>
-        <ul class="list-disc list-inside text-sm text-gray-700">
-          {% if missing_meals %}
-            <li>Приёмы пищи за сегодня отсутствуют</li>
-          {% endif %}
-          {% if missing_activity %}
-            <li>Данные активности за сегодня отсутствуют</li>
-          {% endif %}
-        </ul>
-        <p class="mt-2 text-sm text-red-600">Пожалуйста, заполните их в соответствующих разделах.</p>
-      {% else %}
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div class="bg-green-50 p-4 rounded-lg">
-            <div class="text-sm text-green-800">Метаболизм</div>
-            <div class="text-lg font-bold">{{ metabolism }} ккал</div>
-          </div>
-          <div class="bg-blue-50 p-4 rounded-lg">
-            <div class="text-sm text-blue-800">Активные ккал</div>
-            <div class="text-lg font-bold">{{ active_kcal }} ккал</div>
-          </div>
-          <div class="bg-yellow-50 p-4 rounded-lg">
-            <div class="text-sm text-yellow-800">Съедено сегодня</div>
-            <div class="text-lg font-bold">{{ total_meals }} ккал</div>
-          </div>
-          <div class="bg-red-50 p-4 rounded-lg">
-            <div class="text-sm text-red-800">Дефицит</div>
-            <div class="text-lg font-bold">{{ deficit }} ккал</div>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="bg-white p-6 rounded-xl shadow">
-      <h3 class="text-lg font-semibold mb-3">🔹 Активность сегодня</h3>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <div class="text-sm text-gray-500">Шаги</div>
-          <div class="text-xl font-bold">{{ steps or '—' }}</div>
-        </div>
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <div class="text-sm text-gray-500">Дистанция</div>
-          <div class="text-xl font-bold">{{ distance_km or '—' }} км</div>
-        </div>
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <div class="text-sm text-gray-500">Калории</div>
-          <div class="text-xl font-bold">{{ active_kcal or '—' }}</div>
-        </div>
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <div class="text-sm text-gray-500">Покой ккал</div>
-          <div class="text-xl font-bold">{{ resting_kcal or '—' }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-white p-6 rounded-xl shadow">
-      <h3 class="text-lg font-semibold mb-3">🍽️ Приёмы пищи</h3>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {% for meal in today_meals %}
-          <div class="bg-gray-50 p-4 rounded-lg text-center">
-            <div class="text-sm text-gray-500">{{ meal.meal_type|capitalize }}</div>
-            <div class="mt-2 text-lg font-bold">{{ meal.calories }} ккал</div>
-          </div>
-        {% else %}
-          <div class="col-span-4 text-sm text-gray-500">Нет данных о приёмах пищи</div>
-        {% endfor %}
-      </div>
-    </div>
+  </div>
 
   {% elif request.path == '/activity' %}
-  <div class="space-y-6">
-    <div class="bg-white p-6 rounded-xl shadow">
-      <h2 class="text-xl font-semibold mb-4">📊 Детальная активность</h2>
+  <div class="card p-6 animate-fade-in">
+    <h2 class="text-xl font-bold mb-6">Детальная активность</h2>
+    {% if today_activity %}
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-lg"><div class="text-sm text-slate-500">👟 Шаги</div><div class="text-2xl font-bold mt-1">{{ today_activity.steps or '—' }}</div></div>
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-lg"><div class="text-sm text-slate-500">🗺️ Дистанция</div><div class="text-2xl font-bold mt-1">{{ today_activity.distance_km or '—' }} км</div></div>
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-lg"><div class="text-sm text-slate-500">🔥 Калории</div><div class="text-2xl font-bold mt-1">{{ today_activity.active_kcal or '—' }}</div></div>
+        <div class="bg-slate-50 border border-slate-200 p-4 rounded-lg"><div class="text-sm text-slate-500">❤️ Пульс (сред.)</div><div class="text-2xl font-bold mt-1">{{ today_activity.heart_rate_avg or '—' }} <span class="text-base">уд/мин</span></div></div>
+      </div>
 
-      {% if today_activity %}
-        <div class="grid md:grid-cols-2 gap-6 mb-8">
-          <div class="space-y-4">
-            <h3 class="text-lg font-medium">Сегодня</h3>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-sm text-gray-500">Шаги</div>
-                <div class="text-xl font-bold">{{ today_activity.steps or '—' }}</div>
-              </div>
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-sm text-gray-500">Дистанция</div>
-                <div class="text-xl font-bold">{{ today_activity.distance_km or '—' }} км</div>
-              </div>
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-sm text-gray-500">Калории</div>
-                <div class="text-xl font-bold">{{ today_activity.active_kcal or '—' }}</div>
-              </div>
-              <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="text-sm text-gray-500">Пульс</div>
-                <div class="text-xl font-bold">{{ today_activity.heart_rate_avg or '—' }} уд/мин</div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 class="text-lg font-medium mb-4">Источник данных</h3>
-            <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-              <div class="flex items-center">
-                <div class="bg-blue-100 p-3 rounded-full mr-4">
-                  <span class="text-blue-600">📱</span>
-                </div>
-                <div>
-                  <div class="font-medium">{{ today_activity.source or 'Неизвестно' }}</div>
-                  <div class="text-sm text-gray-500">Последнее обновление: {{ today_activity.date.strftime('%H:%M') }}</div>
-                </div>
-              </div>
-            </div>
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 space-y-6">
+          <div class="p-4 bg-slate-50 rounded-lg"><h3 class="font-semibold mb-2">График шагов за неделю</h3><div class="h-48 flex items-center justify-center text-slate-400">[Компонент графика]</div></div>
+          <div class="p-4 bg-slate-50 rounded-lg"><h3 class="font-semibold mb-2">Активные калории по дням</h3><div class="h-48 flex items-center justify-center text-slate-400">[Компонент графика]</div></div>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg h-fit">
+          <h3 class="font-semibold text-blue-800">Источник данных</h3>
+          <div class="flex items-center mt-3">
+             <div class="bg-white p-3 rounded-full mr-4 shadow">
+                  <span class="text-xl">📱</span>
+             </div>
+             <div>
+                <div class="font-bold text-blue-900">{{ today_activity.source or 'Неизвестно' }}</div>
+                <div class="text-sm text-blue-700">Обновлено: {{ today_activity.date.strftime('%H:%M') }}</div>
+             </div>
           </div>
         </div>
+      </div>
 
-        <div class="space-y-8">
-          <div>
-            <h3 class="text-lg font-medium mb-3">Шаги за неделю</h3>
-            <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-              [График шагов]
-            </div>
-          </div>
+    {% else %}
+      <div class="text-center py-16">
+        <div class="text-5xl text-slate-300 mb-4">📊</div>
+        <p class="text-slate-500 font-semibold">Данные об активности не найдены</p>
+        <p class="text-sm text-slate-400 mt-2">Пожалуйста, подключите источник данных, например, Apple Health или Google Fit.</p>
+      </div>
+    {% endif %}
+  </div>
 
-          <div>
-            <h3 class="text-lg font-medium mb-3">Активность по дням</h3>
-            <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-              [График активности]
-            </div>
-          </div>
-        </div>
-      {% else %}
-        <div class="text-center py-10">
-          <div class="text-gray-400 mb-4">📊</div>
-          <p class="text-gray-500">Данные активности не найдены</p>
-          <p class="text-sm text-gray-400 mt-2">Подключите источник данных (Apple Health, Google Fit и т.д.)</p>
-        </div>
-      {% endif %}
-    </div>
 {% elif request.path == '/meals' %}
-<div class="space-y-6">
-  <h3 class="text-xl font-semibold">🍽️ Приёмы пищи</h3>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-    {% for meal_name, key, gradient in [
-      ('Завтрак', 'breakfast', 'bg-gradient-to-br from-amber-300 to-amber-500'),
-      ('Обед',    'lunch',     'bg-gradient-to-br from-orange-300 to-orange-500'),
-      ('Ужин',    'dinner',    'bg-gradient-to-br from-purple-300 to-purple-500')
-    ] %}
-      {% set items = meals.get(key, []) %}
-      {% if items %}
-        <div class="rounded-2xl shadow-lg p-6 relative h-[420px] flex flex-col justify-between {{ gradient }} text-gray-900">
-          <div>
-            <h2 class="text-2xl font-bold mb-4">{{ meal_name }}</h2>
-            <ul class="space-y-3 text-sm leading-relaxed">
-              {% for food in items %}
-                <li class="bg-white bg-opacity-40 rounded-lg px-3 py-2 shadow-sm">
-                  <p class="font-semibold">{{ food.analysis }}</p>
-                  <div class="grid grid-cols-2 gap-2 mt-2 text-xs">
-                    <div class="bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium text-center">
-                      {{ food.calories }} ккал
+<div class="space-y-8 animate-fade-in">
+
+    <div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Сводка за сегодня</h2>
+        <div class="card p-6">
+            {# --- НАЧАЛО ИСПРАВЛЕНИЯ --- #}
+            {% set all_items = meals.values() | sum(start=[]) %}
+
+            {% set today_total_kcal    = all_items | sum(attribute='calories') %}
+            {% set today_total_protein = all_items | sum(attribute='protein') %}
+            {% set today_total_fat     = all_items | sum(attribute='fat') %}
+            {% set today_total_carbs   = all_items | sum(attribute='carbs') %}
+            {# --- КОНЕЦ ИСПРАВЛЕНИЯ --- #}
+
+            {% set goal_kcal = latest_analysis.metabolism + 500 if latest_analysis and latest_analysis.metabolism else 2000 %}
+            {% set progress_percent = (today_total_kcal / goal_kcal * 100) | round if goal_kcal > 0 else 0 %}
+
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                    <div class="text-sm text-slate-500">Потреблено калорий</div>
+                    <span class="text-3xl font-bold text-slate-900">{{ today_total_kcal }}</span>
+                    <span class="text-lg text-slate-400 font-medium">/ {{ goal_kcal }} ккал</span>
+                </div>
+                <div class="w-full sm:w-1/3">
+                    <div class="w-full bg-slate-200 rounded-full h-2.5">
+                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ progress_percent }}%"></div>
                     </div>
-                    <div class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium text-center">
-                      Б: {{ food.protein }} г
+                </div>
+            </div>
+
+            <hr class="my-5 border-slate-200">
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="text-sm font-semibold text-blue-800">Белки</div>
+                    <div class="text-xl font-bold text-blue-900 mt-1">{{ today_total_protein | round(1) }} г</div>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div class="text-sm font-semibold text-yellow-800">Жиры</div>
+                    <div class="text-xl font-bold text-yellow-900 mt-1">{{ today_total_fat | round(1) }} г</div>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <div class="text-sm font-semibold text-purple-800">Углеводы</div>
+                    <div class="text-xl font-bold text-purple-900 mt-1">{{ today_total_carbs | round(1) }} г</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-4">Приёмы пищи</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {% for meal_name, key, gradient in [
+              ('Завтрак', 'breakfast', 'from-amber-400 to-orange-500'),
+              ('Обед',    'lunch',     'from-green-400 to-emerald-500'),
+              ('Ужин',    'dinner',    'from-blue-500 to-indigo-600'),
+              ('Перекус', 'snack',     'from-pink-400 to-rose-500')
+            ] %}
+              {% set item = meals.get(key, []) | first %}
+
+              <div class="flip-card" onclick="this.classList.toggle('is-flipped')">
+                <div class="flip-card-inner">
+
+                  <div class="flip-card-front">
+                    <div class="p-6 bg-gradient-to-br {{ gradient }} text-white">
+                      <div class="flex justify-between items-center">
+                          <h3 class="text-xl font-bold">{{ meal_name }}</h3>
+                          {% if item %}
+                            <span class="text-lg font-bold">{{ item.calories }} <span class="text-sm font-normal opacity-80">ккал</span></span>
+                          {% endif %}
+                      </div>
                     </div>
-                    <div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium text-center">
-                      Ж: {{ food.fat }} г
+                    <div class="p-6 flex-grow flex flex-col justify-center items-center">
+                      {% if item %}
+                        <p class="text-lg font-semibold text-slate-800">{{ item.name or 'Название не указано' }}</p>
+                        <span class="text-xs text-slate-400 mt-4">(Нажмите, чтобы увидеть детали)</span>
+                      {% else %}
+                        <p class="text-slate-400">Нет данных</p>
+                      {% endif %}
                     </div>
-                    <div class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-medium text-center">
-                      У: {{ food.carbs }} г
+                    <div class="p-4 border-t border-slate-200">
+                      <button onclick="event.stopPropagation(); openMealModal('{{ key }}','{{ meal_name }}')"
+                              class="btn w-full {% if item %}btn-secondary{% else %}btn-primary{% endif %}">
+                        ✏️ {% if item %}Изменить{% else %}Добавить{% endif %}
+                      </button>
                     </div>
                   </div>
-                </li>
-              {% endfor %}
-            </ul>
-          </div>
-          <div class="text-right">
-            <button onclick="openMealModal('{{ key }}','{{ meal_name }}')"
-                    class="text-xs bg-white bg-opacity-60 hover:bg-opacity-90 text-gray-800 font-medium px-3 py-1 rounded-full shadow transition">
-              ✏️ Изменить
-            </button>
-          </div>
+
+                  <div class="flip-card-back">
+                    {% if item %}
+                      <h4 class="font-bold text-lg mb-2">Вердикт AI</h4>
+                      <p class="text-sm text-center mb-4 bg-white/70 p-3 rounded-md">{{ item.verdict or 'Нет вердикта.' }}</p>
+                      <h4 class="font-bold text-lg mb-2">Анализ</h4>
+                      <p class="text-xs text-slate-600 text-center">{{ item.analysis or 'Нет анализа.' }}</p>
+                    {% else %}
+                        <p>Нажмите "Добавить", чтобы загрузить фото блюда.</p>
+                    {% endif %}
+                  </div>
+
+                </div>
+              </div>
+            {% endfor %}
         </div>
-      {% else %}
-        <div onclick="openMealModal('{{ key }}','{{ meal_name }}')"
-             class="cursor-pointer rounded-2xl shadow-lg p-6 h-[420px] flex items-center justify-center bg-gray-200 hover:bg-gray-300 transition text-gray-600 text-center">
-          <div>
-            <h2 class="text-2xl font-bold mb-2">{{ meal_name }}</h2>
-            <p class="text-sm">Нажмите, чтобы добавить приём пищи</p>
-          </div>
-        </div>
-      {% endif %}
-    {% endfor %}
-  </div>
+    </div>
 </div>
+    </div>
+</div>
+
+{%- macro sum(items, attribute, sum_key=false) -%}
+  {% if sum_key %}
+    {{ items | map('sum', attribute=attribute) | sum }}
+  {% else %}
+    {{ items | sum(attribute=attribute) }}
+  {% endif %}
+{%- endmacro -%}
 {% endif %}
 
+<div id="mealModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+  <div class="card w-full max-w-md p-6 relative animate-fade-in" onclick="event.stopPropagation()">
+    <button onclick="closeMealModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">&times;</button>
+    <h2 class="text-lg font-bold mb-4">Добавить приём: <span id="modalMealTitle"></span></h2>
+    <div class="space-y-4">
+      <input type="file" id="mealFileInput" accept="image/*" class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+      <button id="analyzeMealBtn" onclick="analyzeMeal()" class="btn btn-primary w-full">Анализировать фото</button>
 
-    <div id="mealModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
-<div class="bg-white rounded-lg p-6 w-[90%] max-w-sm sm:max-w-md shadow-xl relative animate-fade-in">
-    <button onclick="closeMealModal()"
-            class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl">&times;</button>
-    <h2 class="text-lg font-semibold mb-4">Добавить приём: <span id="modalMealTitle"></span></h2>
-    <input type="file" id="mealFileInput" accept="image/*"
-           class="w-full p-2 border rounded text-sm mb-4">
-    <button id="analyzeMealBtn"
-            onclick="analyzeMeal()"
-            class="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mb-4">
-      Анализировать
-    </button>
+      <div id="mealLoading" class="flex items-center justify-center space-x-2 hidden text-slate-500">
+        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+        <span>Анализируем...</span>
+      </div>
 
-    <div id="mealLoading" class="flex items-center space-x-2 hidden mb-4">
-      <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
-           viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-      </svg>
-      <span>Анализируем...</span>
+      <div id="mealAnalysisResult" class="hidden space-y-3">
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+          <div class="text-lg font-bold text-slate-800" id="resultName"></div>
+          <p class="text-sm text-slate-600 mt-2" id="resultAnalysis"></p>
+          <div class="grid grid-cols-2 gap-2 text-center mt-3 text-sm">
+            <div class="bg-green-100 text-green-800 p-2 rounded-lg">Калории: <span id="resultCalories" class="font-bold"></span> ккал</div>
+            <div class="bg-blue-100 text-blue-800 p-2 rounded-lg">Белки: <span id="resultProtein" class="font-bold"></span> г</div>
+            <div class="bg-yellow-100 text-yellow-800 p-2 rounded-lg">Жиры: <span id="resultFat" class="font-bold"></span> г</div>
+            <div class="bg-purple-100 text-purple-800 p-2 rounded-lg">Углеводы: <span id="resultCarbs" class="font-bold"></span> г</div>
+          </div>
+        </div>
+<form id="confirmMealForm" method="POST" action="/meals" class="hidden">
+    <input type="hidden" name="meal_type" id="confirmMealType">
+          <input type="hidden" name="name" id="confirmName">
+          <input type="hidden" name="verdict" id="confirmVerdict">
+          <input type="hidden" name="calories" id="confirmCalories">
+          <input type="hidden" name="protein" id="confirmProtein">
+          <input type="hidden" name="fat" id="confirmFat">
+          <input type="hidden" name="carbs" id="confirmCarbs">
+          <input type="hidden" name="analysis" id="confirmAnalysis">
+          <button type="submit" class="btn bg-green-600 text-white hover:bg-green-700 w-full">Сохранить приём пищи</button>
+        </form>
+      </div>
     </div>
-
-<div id="mealAnalysisResult" class="hidden mb-4">
-  <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2 text-sm">
-    <div class="text-lg font-semibold text-gray-800" id="resultName"></div>
-    <div class="grid grid-cols-2 gap-2 text-center">
-      <div class="bg-green-100 text-green-800 px-2 py-1 rounded">Калории: <span id="resultCalories"></span> ккал</div>
-      <div class="bg-blue-100 text-blue-800 px-2 py-1 rounded">Белки: <span id="resultProtein"></span> г</div>
-      <div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Жиры: <span id="resultFat"></span> г</div>
-      <div class="bg-purple-100 text-purple-800 px-2 py-1 rounded">Углеводы: <span id="resultCarbs"></span> г</div>
-    </div>
-    <div class="bg-white border border-gray-100 rounded p-2 text-gray-600 text-sm mt-2" id="resultAnalysis"></div>
   </div>
 </div>
 
-    <form id="confirmMealForm" method="POST" action="/add_meal" class="space-y-4 hidden">
-      <input type="hidden" name="meal_type" id="confirmMealType">
-      <input type="hidden" name="calories"     id="confirmCalories">
-      <input type="hidden" name="protein"      id="confirmProtein">
-      <input type="hidden" name="fat"          id="confirmFat">
-      <input type="hidden" name="carbs"        id="confirmCarbs">
-      <input type="hidden" name="analysis"     id="confirmAnalysis">
-      <button type="submit"
-              class="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700">
-        Сохранить
-      </button>
+
+</div>
+
+<div id="dietLoader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 hidden">
+  <svg class="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+  <p class="mt-4 text-lg font-semibold text-slate-700">Генерируем ваш идеальный рацион...</p>
+  <p class="text-slate-500">Это может занять до 30 секунд.</p>
+</div>
+
+<div id="telegramModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+  <div class="card w-full max-w-md p-6 relative space-y-4 text-center animate-fade-in" onclick="event.stopPropagation()">
+    <button onclick="closeTelegramModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600">&times;</button>
+    <h2 class="text-xl font-bold">🔐 Привязка Telegram</h2>
+    <p class="text-slate-600 text-sm">Отправьте этот код в <a href="https://t.me/DietFor35MinuteBot" target="_blank" class="font-semibold text-blue-600 underline">Telegram-бота</a>, чтобы связать аккаунты:</p>
+    <div class="bg-slate-100 rounded-lg px-4 py-3 text-2xl font-mono tracking-widest inline-block border border-slate-200" id="tgCodeDisplay">...</div>
+    <button onclick="copyCode()" class="btn btn-secondary w-full">📋 Скопировать код</button>
+  </div>
+</div>
+
+<div id="editProfileModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeEditProfileModal()">
+  <div class="card w-full max-w-lg p-6 sm:p-8 relative animate-fade-in" onclick="event.stopPropagation()">
+    <button onclick="closeEditProfileModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600">&times;</button>
+    <h2 class="text-xl font-bold mb-6">Редактирование профиля</h2>
+
+    <form action="/edit_profile" method="POST" enctype="multipart/form-data" class="space-y-5">
+
+        <div class="flex items-center gap-4">
+            {% if user.avatar %}
+              <img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}" alt="Avatar" class="w-16 h-16 rounded-full object-cover">
+            {% else %}
+              <img src="https://www.svgrepo.com/show/452070/user-avatar.svg" alt="Default Avatar" class="w-16 h-16 rounded-full">
+            {% endif %}
+            <div>
+                <label for="avatar" class="block text-sm font-medium text-slate-700">Сменить аватар</label>
+                <input type="file" name="avatar" id="avatar" accept="image/*" class="mt-1 text-sm text-slate-500 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+                <label for="name" class="block text-sm font-medium mb-1 text-slate-700">Имя</label>
+                <input type="text" name="name" id="name" value="{{ user.name }}" class="form-input" required>
+            </div>
+            <div>
+                <label for="email" class="block text-sm font-medium mb-1 text-slate-700">Email</label>
+                <input type="email" name="email" id="email" value="{{ user.email }}" class="form-input" required>
+            </div>
+        </div>
+
+        <div>
+          <label for="date_of_birth" class="block text-sm font-medium mb-1 text-slate-700">Дата рождения</label>
+          <input type="date" name="date_of_birth" id="date_of_birth" value="{{ user.date_of_birth.strftime('%Y-%m-%d') if user.date_of_birth else '' }}" class="form-input" required>
+        </div>
+
+        <hr>
+
+        <p class="text-sm text-slate-600">Оставьте поля ниже пустыми, если не хотите менять пароль.</p>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+             <div>
+                <label for="new_password" class="block text-sm font-medium mb-1 text-slate-700">Новый пароль</label>
+                <input type="password" name="new_password" id="new_password" class="form-input" placeholder="••••••••">
+            </div>
+            <div>
+                <label for="confirm_password" class="block text-sm font-medium mb-1 text-slate-700">Подтвердите пароль</label>
+                <input type="password" name="confirm_password" id="confirm_password" class="form-input" placeholder="••••••••">
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4">
+            <button type="button" onclick="closeEditProfileModal()" class="btn btn-secondary">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+        </div>
     </form>
-  </div>
-</div>
-
-<script>
-  let currentMealKey = '';
-
-  function openMealModal(key, title) {
-    currentMealKey = key;
-    document.getElementById('modalMealTitle').textContent = title;
-    document.getElementById('confirmMealType').value = key;
-    document.getElementById('mealAnalysisResult').classList.add('hidden');
-    document.getElementById('confirmMealForm').classList.add('hidden');
-    document.getElementById('mealFileInput').value = '';
-    document.getElementById('mealLoading').classList.add('hidden');
-    document.getElementById('analyzeMealBtn').disabled = false;
-    document.getElementById('mealModal').classList.remove('hidden');
-    document.getElementById('mealModal').classList.add('flex');
-  }
-
-  function closeMealModal() {
-    document.getElementById('mealModal').classList.add('hidden');
-    document.getElementById('mealModal').classList.remove('flex');
-  }
-
-  function analyzeMeal() {
-    const fileInput = document.getElementById('mealFileInput');
-    if (!fileInput.files.length) return alert('Выберите фото блюда');
-
-    const fd = new FormData();
-    fd.append('file', fileInput.files[0]);
-    fd.append('meal_type', currentMealKey);
-
-    document.getElementById('analyzeMealBtn').disabled = true;
-    document.getElementById('mealLoading').classList.remove('hidden');
-
-    fetch('/analyze_meal_photo', { method:'POST', body: fd })
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('analyzeMealBtn').disabled = false;
-        document.getElementById('mealLoading').classList.add('hidden');
-        if (data.error) return alert(data.error);
-
-document.getElementById('resultName').textContent     = data.name;
-document.getElementById('resultCalories').textContent = data.calories;
-document.getElementById('resultProtein').textContent  = data.protein;
-document.getElementById('resultFat').textContent      = data.fat;
-document.getElementById('resultCarbs').textContent    = data.carbs;
-document.getElementById('resultAnalysis').textContent = data.analysis;
-
-        document.getElementById('mealAnalysisResult').classList.remove('hidden');
-
-        // заполняем форму подтверждения
-        document.getElementById('confirmCalories').value = data.calories;
-        document.getElementById('confirmProtein').value  = data.protein;
-        document.getElementById('confirmFat').value      = data.fat;
-        document.getElementById('confirmCarbs').value    = data.carbs;
-        document.getElementById('confirmAnalysis').value = data.analysis;
-
-        document.getElementById('confirmMealForm').classList.remove('hidden');
-      })
-      .catch(err => {
-        alert('Ошибка анализа: ' + err.message);
-        document.getElementById('analyzeMealBtn').disabled = false;
-        document.getElementById('mealLoading').classList.add('hidden');
-      });
-  }
-</script>
-
-
-</div>
-
-<div id="dietLoader" class="fixed inset-0 bg-white/80 flex items-center justify-center z-50 hidden">
-  <svg class="animate-spin h-10 w-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none"
-       viewBox="0 0 24 24">
-    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-    <path class="opacity-75" fill="currentColor"
-          d="M4 12a8 8 0 018-8v8z"></path>
-  </svg>
-  <p class="mt-2 text-gray-700">Генерируем диету по твоим данным...</p>
-</div>
-
-<div id="telegramModal" class="fixed inset-0 bg-black/40 z-50 hidden items-center justify-center">
-  <div class="bg-white p-6 rounded-lg w-full max-w-md shadow-xl relative space-y-4 text-center animate-fade-in">
-    <button onclick="closeTelegramModal()" class="absolute top-2 right-4 text-gray-400 text-2xl hover:text-gray-600">&times;</button>
-    <h2 class="text-xl font-semibold">🔐 Привязка Telegram</h2>
-    <p class="text-gray-600 text-sm">
-      Отправьте этот код в <a href="https://t.me/DietFor35MinuteBot" target="_blank" class="text-blue-600 underline">Telegram-бота</a>, чтобы привязать профиль:
-    </p>
-    <div class="bg-gray-100 rounded-lg px-4 py-3 text-lg font-mono tracking-wider inline-block" id="tgCodeDisplay">...</div>
-    <button onclick="copyCode()" class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
-      📋 Скопировать
-    </button>
   </div>
 </div>
 
@@ -783,75 +903,281 @@ document.getElementById('resultAnalysis').textContent = data.analysis;
 </style>
 
 <script>
-  // Цель
-  document.querySelectorAll('.goal-card').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('ring-4', 'ring-offset-2', 'ring-green-500'))
-      el.classList.add('ring-4', 'ring-offset-2', 'ring-green-500', 'shadow-lg');
-      document.getElementById('goalInput').value = el.dataset.value;
+
+
+    // --- Логика для информационного баннера ---
+// --- Логика для информационного баннера ---
+const banner = document.getElementById('infoBanner');
+const restoreContainer = document.getElementById('restoreBannerContainer');
+
+// При загрузке страницы проверяем, не был ли баннер уже скрыт
+if (banner && restoreContainer) {
+    if (localStorage.getItem('infoBannerHidden') === 'true') {
+        banner.style.display = 'none';
+        restoreContainer.style.display = 'block';
+    }
+}
+
+function hideBanner() {
+    // Сохраняем выбор пользователя в локальное хранилище браузера
+    localStorage.setItem('infoBannerHidden', 'true');
+
+    // Плавно скрываем баннер
+    banner.style.transition = 'opacity 0.5s, transform 0.5s';
+    banner.style.opacity = '0';
+    banner.style.transform = 'scale(0.95)';
+
+    setTimeout(() => {
+        banner.style.display = 'none';
+        // Показываем контейнер с кнопкой восстановления
+        restoreContainer.style.display = 'block';
+    }, 500); // Ждем завершения анимации
+}
+
+function showBanner() {
+    // Удаляем запись о скрытии из хранилища
+    localStorage.removeItem('infoBannerHidden');
+
+    // Скрываем контейнер с кнопкой восстановления
+    restoreContainer.style.display = 'none';
+
+    // Показываем баннер с плавной анимацией появления
+    banner.style.display = 'block';
+    // Небольшая задержка, чтобы браузер успел применить display: block перед анимацией
+    setTimeout(() => {
+        banner.style.transition = 'opacity 0.5s, transform 0.5s';
+        banner.style.opacity = '1';
+        banner.style.transform = 'scale(1)';
+    }, 10);
+}
+    if (banner) {
+        // При загрузке страницы проверяем, не был ли баннер уже скрыт
+        if (localStorage.getItem('infoBannerHidden') === 'true') {
+            banner.style.display = 'none';
+        }
+    }
+
+    function hideBanner() {
+        // Сохраняем выбор пользователя в локальное хранилище браузера
+        localStorage.setItem('infoBannerHidden', 'true');
+        // Плавно скрываем баннер
+        banner.style.transition = 'opacity 0.5s ease';
+        banner.style.opacity = '0';
+        setTimeout(() => {
+            banner.style.display = 'none';
+        }, 500); // Ждем завершения анимации
+    }
+
+    // --- Логика для модального окна приёма пищи ---
+    let currentMealKey = '';
+
+    function openMealModal(key, title) {
+        currentMealKey = key;
+        document.getElementById('modalMealTitle').textContent = title;
+        document.getElementById('confirmMealType').value = key;
+
+        // Сброс состояния модального окна
+        document.getElementById('mealAnalysisResult').classList.add('hidden');
+        document.getElementById('confirmMealForm').classList.add('hidden');
+        document.getElementById('mealFileInput').value = '';
+        document.getElementById('mealLoading').classList.add('hidden');
+        document.getElementById('analyzeMealBtn').disabled = false;
+
+        // Показать модальное окно
+        const modal = document.getElementById('mealModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeMealModal() {
+        const modal = document.getElementById('mealModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function analyzeMeal() {
+        const fileInput = document.getElementById('mealFileInput');
+        if (!fileInput.files.length) {
+            alert('Пожалуйста, выберите фото блюда для анализа.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('meal_type', currentMealKey);
+
+        document.getElementById('analyzeMealBtn').disabled = true;
+        document.getElementById('mealLoading').classList.remove('hidden');
+        document.getElementById('mealAnalysisResult').classList.add('hidden');
+
+
+        fetch('/analyze_meal_photo', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('mealLoading').classList.add('hidden');
+                document.getElementById('analyzeMealBtn').disabled = false;
+
+                if (data.error) {
+                    alert(`Ошибка анализа: ${data.error}`);
+                    return;
+                }
+
+                // Заполняем видимые поля результата
+                document.getElementById('resultName').textContent = data.name;
+                document.getElementById('resultCalories').textContent = data.calories;
+                document.getElementById('resultProtein').textContent = data.protein;
+                document.getElementById('resultFat').textContent = data.fat;
+                document.getElementById('resultCarbs').textContent = data.carbs;
+                document.getElementById('resultAnalysis').textContent = data.analysis;
+
+
+                // Заполняем скрытую форму для отправки на сервер
+                document.getElementById('confirmName').value = data.name;
+                document.getElementById('confirmVerdict').value = data.verdict;
+                document.getElementById('confirmCalories').value = data.calories;
+                document.getElementById('confirmProtein').value = data.protein;
+                document.getElementById('confirmFat').value = data.fat;
+                document.getElementById('confirmCarbs').value = data.carbs;
+                document.getElementById('confirmAnalysis').value = data.analysis;
+
+                // Показываем блок с результатами и кнопку сохранения
+                document.getElementById('mealAnalysisResult').classList.remove('hidden');
+                document.getElementById('confirmMealForm').classList.remove('hidden');
+            })
+            .catch(error => {
+                document.getElementById('mealLoading').classList.add('hidden');
+                document.getElementById('analyzeMealBtn').disabled = false;
+                alert(`Сетевая ошибка: ${error.message}`);
+            });
+    }
+
+    // --- Логика для генерации диеты ---
+    function startDietGeneration() {
+        const goal = document.getElementById('goalInput').value;
+        const gender = document.getElementById('genderInput').value;
+        const preferences = document.querySelector('textarea[name="preferences"]').value;
+
+        if (!goal || !gender) {
+            alert('Пожалуйста, выберите цель и пол.');
+            return;
+        }
+
+        const loader = document.getElementById('dietLoader');
+        loader.classList.remove('hidden');
+
+        const params = new URLSearchParams({
+            goal,
+            gender,
+            preferences
+        });
+        fetch('/generate_diet?' + params)
+            .then(res => res.json())
+            .then(data => {
+                loader.classList.add('hidden');
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    alert('Произошла ошибка: ' + JSON.stringify(data));
+                }
+            })
+            .catch(err => {
+                loader.classList.add('hidden');
+                alert('Сетевая ошибка: ' + err.message);
+            });
+    }
+
+    // --- Логика для модального окна Telegram ---
+    function openTelegramModal() {
+        fetch('/generate_telegram_code')
+            .then(res => res.json())
+            .then(data => {
+                if (data.code) {
+                    document.getElementById('tgCodeDisplay').textContent = data.code;
+                    const modal = document.getElementById('telegramModal');
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                } else {
+                    alert('Не удалось сгенерировать код.');
+                }
+            })
+            .catch(err => alert('Ошибка при генерации кода: ' + err.message));
+    }
+
+    function closeTelegramModal() {
+        document.getElementById('telegramModal').classList.add('hidden');
+        document.getElementById('telegramModal').classList.remove('flex');
+    }
+
+    function copyCode() {
+        const code = document.getElementById('tgCodeDisplay').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            alert('Код скопирован в буфер обмена!');
+        });
+    }
+
+    // --- Вспомогательные функции и обработчики событий ---
+    function toggleAnalysisForm() {
+        const form = document.getElementById("uploadForm");
+        form.classList.toggle("hidden");
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Обработчик для карточек выбора (Цель, Пол)
+        document.querySelectorAll('.selection-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const group = card.dataset.group;
+                // Убираем выделение у всех карточек в группе
+                document.querySelectorAll(`.selection-card[data-group="${group}"]`).forEach(c => c.classList.remove('selected'));
+                // Добавляем выделение к нажатой
+                card.classList.add('selected');
+                // Устанавливаем значение в скрытое поле
+                document.getElementById(`${group}Input`).value = card.dataset.value;
+            });
+        });
+
+        // Обработчик для переключения видимости ключевых показателей
+        const metricsHeader = document.getElementById('metrics-header');
+        if (metricsHeader) {
+            const detailsView = document.getElementById('metrics-details-view');
+            const iconsView = document.getElementById('metrics-icons-view');
+            const toggleText = document.getElementById('metrics-toggle-text');
+            const toggleIcon = document.getElementById('metrics-toggle-icon');
+
+            metricsHeader.addEventListener('click', () => {
+                const isCollapsed = detailsView.classList.contains('hidden');
+                if (isCollapsed) {
+                    detailsView.classList.remove('hidden');
+                    iconsView.classList.add('hidden');
+                    toggleText.textContent = 'Свернуть';
+                    toggleIcon.style.transform = 'rotate(0deg)';
+                } else {
+                    detailsView.classList.add('hidden');
+                    iconsView.classList.remove('hidden');
+                    toggleText.textContent = 'Все данные';
+                    toggleIcon.style.transform = 'rotate(180deg)';
+                }
+            });
+        }
     });
-  });
 
-  // Пол
-  document.querySelectorAll('.gender-card').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.gender-card').forEach(c => c.classList.remove('ring-4', 'ring-offset-2', 'ring-blue-500'))
-      el.classList.add('ring-4', 'ring-offset-2', 'ring-blue-500', 'shadow-lg');
-      document.getElementById('genderInput').value = el.dataset.value;
-    });
-  });
+    // --- Логика для модального окна редактирования профиля ---
+const editProfileModal = document.getElementById('editProfileModal');
 
-  // Генерация диеты
-  function startDietGeneration() {
-    const goal = document.getElementById('goalInput').value;
-    const gender = document.getElementById('genderInput').value;
-    const preferences = document.querySelector('textarea[name="preferences"]').value;
-    if (!goal || !gender) return alert('Выбери цель и пол.');
+function openEditProfileModal() {
+    if (editProfileModal) {
+        editProfileModal.classList.remove('hidden');
+        editProfileModal.classList.add('flex');
+    }
+}
 
-    const loader = document.getElementById('dietLoader');
-    loader.classList.remove('hidden');
-
-    const params = new URLSearchParams({ goal, gender, preferences });
-    fetch('/generate_diet?' + params)
-      .then(res => res.json())
-      .then(data => {
-        loader.classList.add('hidden');
-        if (data.redirect) window.location = data.redirect;
-        else alert('Ошибка: ' + JSON.stringify(data));
-      })
-      .catch(err => {
-        loader.classList.add('hidden');
-        alert('Сетевая ошибка: ' + err.message);
-      });
-  }
-
-  // Telegram
-  function openTelegramModal() {
-    fetch('/generate_telegram_code')
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('tgCodeDisplay').textContent = data.code;
-        document.getElementById('telegramModal').classList.remove('hidden');
-        document.getElementById('telegramModal').classList.add('flex');
-      })
-      .catch(err => alert('Ошибка генерации кода: ' + err.message));
-  }
-
-  function closeTelegramModal() {
-    document.getElementById('telegramModal').classList.add('hidden');
-    document.getElementById('telegramModal').classList.remove('flex');
-  }
-
-  function copyCode() {
-    const code = document.getElementById('tgCodeDisplay').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-      alert('Код скопирован!');
-    });
-  }
-
-  function toggleAnalysisForm() {
-    const form = document.getElementById("uploadForm");
-    form.classList.toggle("hidden");
-  }
+function closeEditProfileModal() {
+    if (editProfileModal) {
+        editProfileModal.classList.add('hidden');
+        editProfileModal.classList.remove('flex');
+    }
+}
 </script>
 {% endblock %}

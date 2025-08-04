@@ -1,192 +1,134 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <title>Подтверждение анализа тела</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    /* Небольшой helper для раскрывающихся подсказок */
-    document.addEventListener('alpine:init', () => {});
-  </script>
-</head>
-<body class="bg-gray-100 min-h-screen py-8 px-4">
+{% extends 'base.html' %}
 
-  <div class="max-w-4xl mx-auto">
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4">
 
-    <!-- HEADER CARD -->
-    <div
-      class="relative overflow-hidden rounded-2xl shadow-md mb-8
-             bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-[1px]">
-      <div class="bg-white rounded-2xl p-6">
-        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-          📊 Подтверждение анализа тела
-        </h1>
-        {% if error %}
-          <p class="text-gray-600">Мы не смогли извлечь все данные с изображения.</p>
-        {% else %}
-          <p class="text-gray-600">Проверьте распознанные показатели перед сохранением.</p>
-        {% endif %}
-      </div>
-    </div>
-
+  <div class="bg-white rounded-2xl shadow-lg mb-8 p-6 border border-gray-200">
+    <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+      <span class="text-3xl">📊</span>
+      <span>Подтверждение анализа тела</span>
+    </h1>
     {% if error %}
-      <!-- ERROR BLOCK -->
-      <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-5 mb-8 text-yellow-800">
-        <h2 class="font-semibold mb-1">⚠️ Недостаточно данных</h2>
-        <p class="text-sm leading-relaxed">{{ error }}</p>
-      </div>
-
-      <!-- FIX / HELP -->
-      <div class="bg-white rounded-xl shadow p-6 mb-8">
-        <h3 class="font-semibold text-gray-800 mb-2">Что делать?</h3>
-        <ol class="list-decimal ml-5 text-sm text-gray-700 space-y-1">
-          <li>Убедитесь, что фото сделано <strong>из приложения / устройства биоимпеданса</strong>.</li>
-          <li>Вся таблица значений должна быть в кадре и читабельна.</li>
-          <li>Повторно загрузите скрин и попробуйте снова.</li>
-          <li>Если данные не совпадают или показатели отсутствуют — свяжитесь с тренером.</li>
-        </ol>
-        <a href="/profile"
-           class="inline-block mt-4 text-blue-600 hover:text-blue-700 hover:underline">
-          ← Вернуться в профиль
-        </a>
-      </div>
-
-    {% elif data %}
-      <!-- MAIN CONFIRM CARD -->
-      <form method="POST" action="/confirm_analysis" class="space-y-10">
-
-        <!-- IMPORTANT NOTICE -->
-        <div class="bg-white rounded-xl shadow p-6 mb-4">
-          <div class="flex items-start gap-3">
-            <div class="text-2xl leading-none">🔒</div>
-            <div>
-              <h2 class="font-semibold text-gray-800 mb-1">Фиксация данных</h2>
-              <p class="text-sm text-gray-700 leading-relaxed">
-                Результаты сохраняются <strong>строго по данным, считанным со скриншота из вашего приложения биоимпеданса</strong>.
-                Изменить значения вручную нельзя. Это сделано для честной динамики и корректных рекомендаций.
-              </p>
-              <p class="text-sm text-gray-700 leading-relaxed mt-2">
-                Если вы считаете, что данные распознаны неверно или не соответствуют приложению —
-                <strong>свяжитесь с вашим тренером</strong> до сохранения.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- PARAM GROUPS -->
-        {% set labels = {
-          "height": ("Рост", "см", "📏"),
-          "weight": ("Вес", "кг", "⚖️"),
-          "bmi": ("ИМТ", "", "📐"),
-          "fat_mass": ("Жировая масса", "кг", "🧈"),
-          "muscle_mass": ("Мышечная масса", "кг", "💪"),
-          "muscle_percentage": ("Процент мышц", "%", "💪"),
-          "body_water": ("Вода в теле", "%", "💧"),
-          "protein_percentage": ("Белок", "%", "🥚"),
-          "bone_mineral_percentage": ("Минералы в костях", "%", "🦴"),
-          "skeletal_muscle_mass": ("Скелетные мышцы", "кг", "🏋️"),
-          "visceral_fat_rating": ("Висцеральный жир", "", "🔥"),
-          "metabolism": ("Базовый обмен", "ккал", "⚡"),
-          "waist_hip_ratio": ("Соотношение талия/бедра", "", "📏"),
-          "body_age": ("Возраст тела", "лет", "🧬"),
-          "fat_free_body_weight": ("Безжировая масса", "кг", "🧱")
-        } %}
-
-        <!-- ОСНОВНОЕ -->
-       <section class="bg-white rounded-xl shadow p-6">
-  <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">🧍 Основные данные</h3>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-    {% for key in ['height','weight','bmi','body_age'] %}
-      {% if data.get(key) is not none %}
-        {% set label = labels[key][0] %}
-        {% set unit = labels[key][1] %}
-        {% set icon = labels[key][2] %}
-        <div class="bg-gray-50 border rounded-lg p-4">
-          <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
-
-          {% if key == 'height' %}
-            <input type="number" name="height" value="{{ data[key] }}"
-                   class="w-full mt-1 bg-white border-gray-300 text-lg font-semibold text-gray-800 rounded px-3 py-1.5 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   min="50" max="300" step="1" required>
-          {% else %}
-            <div class="text-lg font-bold text-gray-800 mt-1">
-              {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
-            </div>
-          {% endif %}
-        </div>
-      {% endif %}
-    {% endfor %}
-  </div>
-</section>
-
-
-        <!-- СОСТАВ ТЕЛА -->
-        <section class="bg-white rounded-xl shadow p-6">
-          <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">🧬 Состав тела</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for key in [
-              'fat_mass','fat_free_body_weight','muscle_mass','muscle_percentage',
-              'skeletal_muscle_mass','body_water','protein_percentage','bone_mineral_percentage'
-            ] %}
-              {% if data.get(key) is not none %}
-                {% set label = labels[key][0] %}
-                {% set unit = labels[key][1] %}
-                {% set icon = labels[key][2] %}
-                <div class="bg-gray-50 border rounded-lg p-4">
-                  <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
-                  <div class="text-lg font-bold text-gray-800 mt-1">
-                    {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
-                  </div>
-                </div>
-              {% endif %}
-            {% endfor %}
-          </div>
-        </section>
-
-        <!-- МЕТАБОЛИЗМ И РИСК-ФАКТОРЫ -->
-        <section class="bg-white rounded-xl shadow p-6">
-          <h3 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">⚡ Метаболизм и риски</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for key in ['metabolism','visceral_fat_rating','waist_hip_ratio'] %}
-              {% if data.get(key) is not none %}
-                {% set label = labels[key][0] %}
-                {% set unit = labels[key][1] %}
-                {% set icon = labels[key][2] %}
-                <div class="bg-gray-50 border rounded-lg p-4">
-                  <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
-                  <div class="text-lg font-bold text-gray-800 mt-1">
-                    {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
-                  </div>
-                </div>
-              {% endif %}
-            {% endfor %}
-          </div>
-        </section>
-
-        {% if data.analysis %}
-          <!-- AI COMMENT -->
-          <section class="bg-blue-50 border-l-4 border-blue-600 p-6 rounded-md">
-            <h3 class="text-lg font-semibold text-blue-700 mb-2">💬 Комментарий от ИИ</h3>
-            <p class="text-sm text-blue-800 whitespace-pre-line leading-relaxed">{{ data.analysis }}</p>
-          </section>
-        {% endif %}
-
-        <!-- SUBMIT -->
-        <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
-          <a href="/profile"
-             class="sm:w-auto w-full text-center px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
-            ↩️ Отменить
-          </a>
-          <button type="submit"
-                  class="sm:w-auto w-full px-6 py-2 rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
-            ✅ Сохранить в профиль
-          </button>
-        </div>
-      </form>
+      <p class="text-gray-600">Мы не смогли извлечь все данные с изображения.</p>
+    {% else %}
+      <p class="text-gray-600">Проверьте распознанные показатели и цели перед сохранением.</p>
     {% endif %}
   </div>
 
-</body>
-</html>
+  {% if error %}
+    <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded p-5 mb-8 text-yellow-800">
+      <h2 class="font-semibold mb-1">⚠️ Недостаточно данных</h2>
+      <p class="text-sm leading-relaxed">{{ error }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow p-6">
+      <a href="/profile" class="inline-block text-blue-600 hover:text-blue-700 hover:underline">
+        ← Вернуться в профиль
+      </a>
+    </div>
+
+  {% elif data %}
+    <form method="POST" action="/confirm_analysis" class="space-y-8">
+
+      {% set labels = {
+        "height": ("Рост", "см", "📏"),
+        "weight": ("Вес", "кг", "⚖️"),
+        "bmi": ("ИМТ", "", "📐"),
+        "fat_mass": ("Жировая масса", "кг", "🧈"),
+        "muscle_mass": ("Мышечная масса", "кг", "💪"),
+        "body_age": ("Возраст тела", "лет", "🧬"),
+        "metabolism": ("Базовый обмен", "ккал", "⚡")
+      } %}
+
+      <section class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <h3 class="text-xl font-semibold text-gray-800 mb-5">Ключевые показатели и цели</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div class="bg-gray-50/70 border rounded-lg p-4">
+            <div class="text-sm text-gray-500 mb-1">{{ labels.weight[2] }} {{ labels.weight[0] }}</div>
+            <div class="text-2xl font-bold text-gray-800">
+              {{ data.weight }} <span class="text-lg text-gray-500">{{ labels.weight[1] }}</span>
+            </div>
+          </div>
+
+          <div class="bg-gray-50/70 border rounded-lg p-4">
+            <label for="height" class="text-sm text-gray-500 mb-1 block">{{ labels.height[2] }} {{ labels.height[0] }}</label>
+            <input type="number" name="height" id="height" value="{{ data.height }}"
+                   class="w-full bg-white border-gray-300 text-2xl font-bold text-gray-800 rounded px-3 py-1 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+
+          <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div class="text-sm font-medium text-green-800 mb-2">{{ labels.muscle_mass[2] }} {{ labels.muscle_mass[0] }}</div>
+            <div class="flex items-end gap-4">
+              <div>
+                <div class="text-xs text-gray-500">Текущая</div>
+                <div class="text-2xl font-bold text-green-900">{{ data.muscle_mass }} <span class="text-lg">{{ labels.muscle_mass[1] }}</span></div>
+              </div>
+              <div class="text-2xl text-gray-400 pb-1">→</div>
+              <div class="flex-1">
+                <label for="muscle_mass_goal" class="text-xs text-gray-500">Цель</label>
+                <input type="number" step="0.1" name="muscle_mass_goal" id="muscle_mass_goal" value="{{ data.muscle_mass_goal }}"
+                       class="w-full bg-white border-gray-300 font-semibold text-gray-800 rounded px-2 py-1 border shadow-sm focus:outline-none focus:ring-1 focus:ring-green-500">
+              </div>
+            </div>
+            {% set muscle_diff = data.muscle_mass_goal - data.muscle_mass %}
+            {% if muscle_diff > 0 %}
+              <div class="text-xs text-green-700 mt-2 font-medium">Нужно набрать: {{ muscle_diff|round(1) }} кг</div>
+            {% endif %}
+          </div>
+
+          <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div class="text-sm font-medium text-orange-800 mb-2">{{ labels.fat_mass[2] }} {{ labels.fat_mass[0] }}</div>
+            <div class="flex items-end gap-4">
+              <div>
+                <div class="text-xs text-gray-500">Текущая</div>
+                <div class="text-2xl font-bold text-orange-900">{{ data.fat_mass }} <span class="text-lg">{{ labels.fat_mass[1] }}</span></div>
+              </div>
+              <div class="text-2xl text-gray-400 pb-1">→</div>
+              <div class="flex-1">
+                <label for="fat_mass_goal" class="text-xs text-gray-500">Цель</label>
+                <input type="number" step="0.1" name="fat_mass_goal" id="fat_mass_goal" value="{{ data.fat_mass_goal }}"
+                       class="w-full bg-white border-gray-300 font-semibold text-gray-800 rounded px-2 py-1 border shadow-sm focus:outline-none focus:ring-1 focus:ring-orange-500">
+              </div>
+            </div>
+            {% set fat_diff = data.fat_mass - data.fat_mass_goal %}
+            {% if fat_diff > 0 %}
+              <div class="text-xs text-orange-700 mt-2 font-medium">Нужно сбросить: {{ fat_diff|round(1) }} кг</div>
+            {% endif %}
+          </div>
+
+        </div>
+      </section>
+
+      <section class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">Прочие показатели</h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {% for key in ['bmi', 'body_age', 'metabolism'] %}
+              {% if data.get(key) is not none %}
+                  {% set label, unit, icon = labels[key] %}
+                  <div class="bg-gray-50/70 border rounded-lg p-4">
+                    <div class="text-sm text-gray-500">{{ icon }} {{ label }}</div>
+                    <div class="text-lg font-bold text-gray-800 mt-1">
+                      {{ data[key] }}{% if unit %} {{ unit }}{% endif %}
+                    </div>
+                  </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+      </section>
+
+      <div class="flex flex-col sm:flex-row sm:justify-end gap-4 pt-4">
+        <a href="/profile"
+           class="sm:w-auto w-full text-center px-6 py-3 rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 transition font-semibold">
+          Отменить
+        </a>
+        <button type="submit"
+                class="sm:w-auto w-full px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30">
+          ✅ Сохранить и обновить цели
+        </button>
+      </div>
+
+    </form>
+  {% endif %}
+
+</div>
+{% endblock %}
