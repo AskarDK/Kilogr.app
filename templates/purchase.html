@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Анимация для появления элементов */
+    .animate-fade-in-up {
+        animation: fadeInUp 0.6s ease-out forwards;
+        opacity: 0;
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    /* Задержки для анимации карточек */
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
+    .delay-300 { animation-delay: 0.3s; }
+
+    #qrCodeContainer canvas {
+    background-color: #ffffff !important;
+}
+</style>
+
+<div class="max-w-5xl mx-auto px-4 py-12 sm:py-16">
+    <div class="text-center mb-12 animate-fade-in-up">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">Выберите свой идеальный план</h1>
+        <p class="mt-4 text-lg text-slate-600 max-w-2xl mx-auto">Откройте все возможности нашего сервиса с премиум-подпиской.</p>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-8">
+        {% for key, plan in plans.items() %}
+            {% set is_best_offer = loop.index == 2 %} {# Выделяем вторую карточку #}
+            <div class="card p-8 text-center relative flex flex-col transition-all duration-300 ease-in-out transform hover:-translate-y-2 hover:shadow-2xl {% if is_best_offer %}border-2 border-blue-500 bg-blue-50{% endif %} animate-fade-in-up delay-{{ loop.index * 100 }}">
+
+                {% if is_best_offer %}
+                <div class="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2">
+                    <span class="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-bold bg-blue-500 text-white shadow-lg">
+                        Выгодно
+                    </span>
+                </div>
+                {% endif %}
+
+                <h2 class="text-2xl font-bold text-slate-800">{{ plan.name }}</h2>
+                <p class="text-5xl font-extrabold text-slate-900 my-6">{{ plan.price }} <span class="text-xl font-medium text-slate-500">₸</span></p>
+                <ul class="space-y-4 text-slate-600 text-left mb-8">
+                    <li class="flex items-start"><svg class="w-5 h-5 text-blue-500 mr-3 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Персональная генерация диет</span></li>
+                    <li class="flex items-start"><svg class="w-5 h-5 text-blue-500 mr-3 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Доступ к групповым чатам</span></li>
+                    <li class="flex items-start"><svg class="w-5 h-5 text-blue-500 mr-3 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><span>Глубокая аналитика прогресса</span></li>
+                </ul>
+                <div class="mt-auto">
+                    <button
+                        onclick="purchase('{{ key }}', {{ plan.price }})"
+                        class="btn w-full text-lg transform hover:scale-105 transition-transform {% if is_best_offer %}btn-primary{% else %}btn-secondary{% endif %}">
+                        Выбрать
+                    </button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div id="paymentModal" onclick="closeModal()" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4 animate-fade-in">
+    <div class="card w-full max-w-sm text-center p-8 relative animate-fade-in-up" onclick="event.stopPropagation()">
+
+        <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600 transition-colors">&times;</button>
+
+        <div id="modalContent">
+             <img src="https://kaspi.kz/favicon/og_image.png" alt="Kaspi.kz Logo" class="h-8 mx-auto mb-4">
+            <h2 class="text-xl font-bold mb-2">Оплата через Kaspi</h2>
+            <p class="text-slate-600 mb-5">Отсканируйте QR в приложении Kaspi.kz для оплаты <strong id="paymentAmount" class="text-slate-800"></strong> ₸</p>
+
+<div id="qrCodeContainer" class="inline-block p-4 rounded-lg bg-white shadow-md border"></div>
+
+            <div class="mt-6">
+                <div class="flex items-center justify-center text-slate-500">
+                    <svg class="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                    <span>Ожидаем подтверждения оплаты...</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="successContent" class="hidden">
+            <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-green-400 to-blue-500 mb-5 shadow-lg animate-pulse">
+                <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-900">Оплата прошла успешно!</h2>
+            <p class="text-slate-600 mt-2">Ваша подписка активирована. Перенаправляем в ваш профиль...</p>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<script>
+let pollingInterval;
+const modal = document.getElementById('paymentModal');
+
+async function purchase(subscriptionType, amount) {
+    const modalContent = document.getElementById('modalContent');
+    const successContent = document.getElementById('successContent');
+    const qrContainer = document.getElementById('qrCodeContainer');
+    const amountEl = document.getElementById('paymentAmount');
+
+    // Сброс состояния модального окна
+    modalContent.classList.remove('hidden');
+    successContent.classList.add('hidden');
+    qrContainer.innerHTML = ''; // Убираем серый фон-заглушку
+    amountEl.textContent = amount;
+    modal.classList.add('flex');
+    modal.classList.remove('hidden');
+
+    try {
+        const response = await fetch('/api/kaspi/generate_qr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription_type: subscriptionType, amount: amount })
+        });
+
+        if (!response.ok) throw new Error('Ошибка при создании счета');
+
+        const data = await response.json();
+
+        // Генерация QR-кода
+        new QRCode(qrContainer, {
+            text: data.qrData,
+            width: 224,
+            height: 224,
+            colorDark: "#1E293B",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Принудительно заливаем белым под QR
+        setTimeout(() => {
+            const canvas = qrContainer.querySelector('canvas');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+        }, 100);
+
+        startPolling(data.orderId);
+
+    } catch (error) {
+        console.error('Ошибка покупки:', error);
+        closeModal();
+        alert('Не удалось начать процесс оплаты. Попробуйте снова.');
+    }
+}
+
+
+function startPolling(orderId) {
+    if (pollingInterval) clearInterval(pollingInterval);
+
+    pollingInterval = setInterval(async () => {
+        try {
+            // Если модальное окно закрыто, прекращаем опрос
+            if (modal.classList.contains('hidden')) {
+                clearInterval(pollingInterval);
+                return;
+            }
+
+            const response = await fetch(`/api/kaspi/status/${orderId}`);
+            const data = await response.json();
+
+            if (data.status === 'paid') {
+                clearInterval(pollingInterval);
+                handleSuccessfulPayment();
+            }
+        } catch (error) {
+            console.error('Ошибка проверки статуса:', error);
+            clearInterval(pollingInterval);
+        }
+    }, 3000);
+
+    setTimeout(() => {
+        if (pollingInterval) {
+           clearInterval(pollingInterval);
+           console.log("Polling timed out.");
+        }
+    }, 300000); // 5 минут
+}
+
+function handleSuccessfulPayment() {
+    document.getElementById('modalContent').classList.add('hidden');
+    document.getElementById('successContent').classList.remove('hidden');
+
+    setTimeout(() => {
+        window.location.href = '/profile';
+    }, 3000);
+}
+
+function closeModal() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// Закрытие по нажатию на клавишу Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+        closeModal();
+    }
+});
+
+</script>
+{% endblock %}

@@ -243,19 +243,24 @@
     </div>
     <div class="p-3 border-t bg-white rounded-b-xl">
          {% if current_user.is_trainer and group.trainer_id == current_user.id or is_member %}
-          <form id="chat-form" action="{{ url_for('post_group_image_message', group_id=group.id) }}" method="POST" enctype="multipart/form-data">
-              <div class="flex items-center border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                  <textarea name="text" placeholder="Сообщение..." rows="1" class="flex-grow p-2 border-none focus:ring-0 resize-none text-sm bg-transparent rounded-lg"></textarea>
-                  <label for="image-upload-widget" class="p-2 text-gray-500 hover:text-blue-600 cursor-pointer">
-                      <i class="fas fa-paperclip text-base"></i>
-                      <input type="file" name="image" id="image-upload-widget" class="hidden" accept="image/*">
-                  </label>
-                  <button type="submit" class="p-2 text-gray-500 hover:text-blue-600">
-                      <i class="fas fa-paper-plane text-base"></i>
-                  </button>
-              </div>
-               <span id="file-name-widget" class="text-xs text-gray-500 mt-1 pl-2"></span>
-          </form>
+         <form id="chat-form" action="{{ url_for('post_group_image_message', group_id=group.id) }}" method="POST" enctype="multipart/form-data">
+        <div class="flex items-center border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+            <textarea name="text" placeholder="Сообщение..." rows="1" class="flex-grow p-2 border-none focus:ring-0 resize-none text-sm bg-transparent rounded-lg"></textarea>
+
+            {# --- CORRECTED FILE BUTTON --- #}
+            {# Use a button with type="button" to prevent form submission #}
+            <button type="button" onclick="document.getElementById('image-upload-widget').click()" class="p-2 text-gray-500 hover:text-blue-600 cursor-pointer">
+                <i class="fas fa-paperclip text-base"></i>
+            </button>
+            <input type="file" name="image" id="image-upload-widget" class="hidden" accept="image/*">
+
+            {# The submit button remains the same #}
+            <button type="submit" class="p-2 text-gray-500 hover:text-blue-600">
+                <i class="fas fa-paper-plane text-base"></i>
+            </button>
+        </div>
+        <span id="file-name-widget" class="text-xs text-gray-500 mt-1 pl-2"></span>
+    </form>
       {% endif %}
     </div>
 </div>

@@ -4,6 +4,8 @@ import base64
 import json
 from flask import jsonify # Убедись, что jsonify импортирован вверху файла
 import requests
+import uuid  # Добавлено для генерации уникальных ID заказов
+import time  # Добавлено для симуляции
 from flask import Flask, render_template, request, redirect, session, jsonify, url_for, flash, abort, \
     send_from_directory
 from flask_sqlalchemy import SQLAlchemy
@@ -19,6 +21,8 @@ import re
 from sqlalchemy import func
 from functools import wraps
 from PIL import Image  # Import Pillow
+from sqlalchemy import text # Убедитесь, что text импортирован из sqlalchemy
+
 
 load_dotenv()
 
@@ -102,40 +106,163 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessag
 # ------------------ MODELS ------------------
 
 class User(db.Model):
+    @property
+    def has_subscription(self):
+        return self.is_trainer or (self.subscription and self.subscription.is_active)
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(128), nullable=False)
     name = db.Column(db.String(50), nullable=False)
     date_of_birth = db.Column(db.Date)
 
-    # --- Старые поля, которые больше не обновляются, но могут использоваться для чтения ---
-    height = db.Column(db.Integer)
-    weight = db.Column(db.Float)
-    muscle_mass = db.Column(db.Float)
-    muscle_percentage = db.Column(db.Float)
-    body_water = db.Column(db.Float)
-    protein_percentage = db.Column(db.Float)
-    bone_mineral_percentage = db.Column(db.Float)
-    skeletal_muscle_mass = db.Column(db.Float)
-    visceral_fat_rating = db.Column(db.Float)
-    metabolism = db.Column(db.Integer)
-    waist_hip_ratio = db.Column(db.Float)
-    body_age = db.Column(db.Integer)
-    fat_mass = db.Column(db.Float)
-    bmi = db.Column(db.Float)
-    fat_free_body_weight = db.Column(db.Float)
-    # --- НОВЫЕ ПОЛЯ ДЛЯ ЦЕЛЕЙ ---
+    # --- НАЧАЛО ИЗМЕНЕНИЙ: Метрики состава тела удалены из этой таблицы ---
+    # --- ДИНАМИЧЕСКИЕ СВОЙСТВА для получения данных из последней записи BodyAnalysis ---
+
+    def _get_latest_analysis(self):
+        """
+        Вспомогательный метод для получения последней записи анализа.
+        Кэширует результат внутри объекта, чтобы не делать лишних запросов к БД.
+        """
+        if not hasattr(self, '_cached_latest_analysis'):
+            self._cached_latest_analysis = BodyAnalysis.query.filter_by(user_id=self.id).order_by(
+                BodyAnalysis.timestamp.desc()).first()
+        return self._cached_latest_analysis
+
+    @property
+    def latest_analysis(self):
+        """Публичное свойство для доступа ко всему объекту последнего анализа."""
+        return self._get_latest_analysis()
+
+    # Создаем свойства для каждого поля, которое раньше было в этой таблице.
+    # Теперь они "на лету" берут данные из последней записи BodyAnalysis.
+    @property
+    def height(self):
+        analysis = self._get_latest_analysis()
+        return analysis.height if analysis else None
+
+    @property
+    def weight(self):
+        analysis = self._get_latest_analysis()
+        return analysis.weight if analysis else None
+
+    @property
+    def muscle_mass(self):
+        analysis = self._get_latest_analysis()
+        return analysis.muscle_mass if analysis else None
+
+    @property
+    def muscle_percentage(self):
+        analysis = self._get_latest_analysis()
+        return analysis.muscle_percentage if analysis else None
+
+    @property
+    def body_water(self):
+        analysis = self._get_latest_analysis()
+        return analysis.body_water if analysis else None
+
+    @property
+    def protein_percentage(self):
+        analysis = self._get_latest_analysis()
+        return analysis.protein_percentage if analysis else None
+
+    @property
+    def bone_mineral_percentage(self):
+        analysis = self._get_latest_analysis()
+        return analysis.bone_mineral_percentage if analysis else None
+
+    @property
+    def skeletal_muscle_mass(self):
+        analysis = self._get_latest_analysis()
+        return analysis.skeletal_muscle_mass if analysis else None
+
+    @property
+    def visceral_fat_rating(self):
+        analysis = self._get_latest_analysis()
+        return analysis.visceral_fat_rating if analysis else None
+
+    @property
+    def metabolism(self):
+        analysis = self._get_latest_analysis()
+        return analysis.metabolism if analysis else None
+
+    @property
+    def waist_hip_ratio(self):
+        analysis = self._get_latest_analysis()
+        return analysis.waist_hip_ratio if analysis else None
+
+    @property
+    def body_age(self):
+        analysis = self._get_latest_analysis()
+        return analysis.body_age if analysis else None
+
+    @property
+    def fat_mass(self):
+        analysis = self._get_latest_analysis()
+        return analysis.fat_mass if analysis else None
+
+    @property
+    def bmi(self):
+        analysis = self._get_latest_analysis()
+        return analysis.bmi if analysis else None
+
+    @property
+    def fat_free_body_weight(self):
+        analysis = self._get_latest_analysis()
+        return analysis.fat_free_body_weight if analysis else None
+
+    # --- КОНЕЦ ИЗМЕНЕНИЙ ---
+
+    # --- ПОЛЯ ДЛЯ ЦЕЛЕЙ (остаются здесь, т.к. относятся к пользователю) ---
     fat_mass_goal = db.Column(db.Float, nullable=True)
     muscle_mass_goal = db.Column(db.Float, nullable=True)
 
     is_trainer = db.Column(db.Boolean, default=False, nullable=False)
     # Сохраняем только имя файла аватарки
-    avatar = db.Column(db.String(200), nullable=True)
+    avatar = db.Column(db.String(200), nullable=False, default='i.webp')
 
     analysis_comment = db.Column(db.Text)
     telegram_chat_id = db.Column(db.String(50), nullable=True)
     telegram_code = db.Column(db.String(10), nullable=True)
+    show_welcome_popup = db.Column(db.Boolean, default=False, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
+    start_date = db.Column(db.Date, default=date.today)
+    end_date = db.Column(db.Date, nullable=True) # Может быть NULL для безлимитной
+    source = db.Column(db.String(50))  # 'promo', 'online', 'admin'
+
+    # --- НОВЫЕ ПОЛЯ ---
+    status = db.Column(db.String(20), nullable=False, default='active') # 'active', 'frozen', 'cancelled'
+    remaining_days_on_freeze = db.Column(db.Integer, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('subscription', uselist=False))
+
+    @property
+    def is_active(self):
+        """Проверяет, активна ли подписка ПРЯМО СЕЙЧАС."""
+        today = date.today()
+        # Подписка активна, если ее статус 'active', она уже началась и еще не закончилась (или безлимитная)
+        return (self.status == 'active' and
+                self.start_date <= today and
+                (self.end_date is None or self.end_date >= today))
+
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # Уникальный ID нашего внутреннего заказа
+    order_id = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
+    # ID счета, который вернет Kaspi
+    kaspi_invoice_id = db.Column(db.String(100), nullable=True)
+    subscription_type = db.Column(db.String(20), nullable=False)  # e.g., '1m', '6m', '12m'
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending, paid, failed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    paid_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('orders', lazy=True))
 
 
 class Group(db.Model):
@@ -386,6 +513,7 @@ def register():
             password=hashed_pw,
             date_of_birth=date_of_birth
         )
+
         db.session.add(user)
         db.session.commit()
         return redirect('/login')
@@ -398,7 +526,17 @@ def register():
 def profile():
     user_id = session.get('user_id')
     user = db.session.get(User, user_id)
-    if not user_id:
+
+    # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+    # Проверяем, существует ли пользователь с таким ID из сессии
+    if not user:
+        # Если нет, значит сессия "протухла". Чистим её и отправляем на логин.
+        session.clear()
+        flash("Ваша сессия была недействительна. Пожалуйста, войдите снова.", "warning")
+        return redirect(url_for('login'))
+    # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
+
+    if not user_id: # Эту проверку можно даже удалить, так как @login_required уже делает это
         return redirect('/login')
 
     session['user_email_before_edit'] = user.email
@@ -417,7 +555,7 @@ def profile():
                                                                          date=date.today()).scalar() or 0
     today_meals = MealLog.query.filter_by(user_id=user.id, date=date.today()).all()
 
-    metabolism = latest_analysis.metabolism if latest_analysis else user.metabolism or 0
+    metabolism = latest_analysis.metabolism if latest_analysis else 0
     active_kcal = today_activity.active_kcal if today_activity else None
     steps = today_activity.steps if today_activity else None
     distance_km = today_activity.distance_km if today_activity else None
@@ -425,6 +563,7 @@ def profile():
 
     missing_meals = (total_meals == 0)
     missing_activity = (active_kcal is None)
+    just_activated = user.show_welcome_popup
 
     deficit = None
     if not missing_meals and not missing_activity and metabolism is not None:
@@ -434,7 +573,7 @@ def profile():
     user_joined_group = user.own_group if user.own_group else (user_memberships[0].group if user_memberships else None)
 
     fat_loss_progress = None
-    if latest_analysis and user.fat_mass_goal and latest_analysis.fat_mass > user.fat_mass_goal:
+    if latest_analysis and latest_analysis.fat_mass and user.fat_mass_goal and latest_analysis.fat_mass > user.fat_mass_goal:
         start_datetime = latest_analysis.timestamp
         today = date.today()
 
@@ -510,7 +649,8 @@ def profile():
         missing_meals=missing_meals,
         missing_activity=missing_activity,
         user_joined_group=user_joined_group,
-        fat_loss_progress=fat_loss_progress
+        fat_loss_progress=fat_loss_progress,
+        just_activated=just_activated
     )
 @app.route('/logout')
 def logout():
@@ -680,6 +820,7 @@ def meals():
                            latest_analysis=latest_analysis,
                            tab='meals')
 
+# --- НАЧАЛО ИЗМЕНЕНИЙ: Обновлённая функция для сохранения анализа ---
 @app.route('/confirm_analysis', methods=['POST'])
 def confirm_analysis():
     user_id = session.get('user_id')
@@ -687,37 +828,42 @@ def confirm_analysis():
         flash("Нет данных для подтверждения анализа.", "error")
         return redirect('/profile')
 
-    # Данные, извлеченные из фото
     analysis_data = session.pop('temp_analysis')
     user = db.session.get(User, user_id)
 
-    # 1. Обновляем только цели и рост в таблице User
-    user.height = request.form.get('height', user.height, type=int)
+    # 1. Обновляем ТОЛЬКО цели в таблице User.
+    #    Метрики состава тела больше здесь не сохраняются.
     user.fat_mass_goal = request.form.get('fat_mass_goal', user.fat_mass_goal, type=float)
     user.muscle_mass_goal = request.form.get('muscle_mass_goal', user.muscle_mass_goal, type=float)
-    user.analysis_comment = analysis_data.get("analysis")  # Комментарий от AI, если он был
+    user.analysis_comment = analysis_data.get("analysis")
     user.updated_at = datetime.utcnow()
 
-    # 2. Создаем новую запись в истории BodyAnalysis
-    # Всегда создаем новую запись, чтобы сохранить полную историю замеров
+    # 2. Создаем НОВУЮ запись в истории BodyAnalysis.
+    #    Это позволяет хранить полную историю всех замеров.
     new_analysis_entry = BodyAnalysis(
         user_id=user.id,
         timestamp=datetime.utcnow()
     )
 
-    # Заполняем запись всеми данными из анализа
+    # 3. Заполняем новую запись всеми данными из анализа, полученными от AI.
     for field, value in analysis_data.items():
+        # Проверяем, есть ли такое поле в модели BodyAnalysis, чтобы избежать ошибок.
         if hasattr(new_analysis_entry, field):
             setattr(new_analysis_entry, field, value)
 
-    # Убедимся, что рост из формы также сохраняется в исторической записи
-    new_analysis_entry.height = user.height
+    # 4. Проверяем, не отредактировал ли пользователь рост в форме подтверждения.
+    #    Если да, обновляем значение в НАШЕЙ НОВОЙ ЗАПИСИ.
+    edited_height = request.form.get('height', type=int)
+    if edited_height is not None:
+        new_analysis_entry.height = edited_height
 
+    # Сохраняем в БД новую запись анализа и обновленные цели пользователя.
     db.session.add(new_analysis_entry)
     db.session.commit()
 
     flash("Данные анализа тела и цели успешно сохранены!", "success")
     return redirect('/profile')
+# --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
 
 @app.route('/generate_telegram_code')
@@ -736,6 +882,10 @@ def generate_telegram_code():
 
 @app.route('/generate_diet')
 def generate_diet():
+    if not get_current_user().has_subscription:
+        flash("Генерация диеты доступна только по подписке.", "warning")
+        return redirect(url_for('profile'))
+
     user_id = session.get('user_id')
     user = db.session.get(User, user_id)
     if not user:
@@ -932,8 +1082,16 @@ def edit_profile():
 @app.route('/diet')
 @login_required
 def diet():
-    user_id = session.get('user_id')
-    diet = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
+    if not get_current_user().has_subscription:
+        flash("Просмотр диеты доступен только по подписке.", "warning")
+        return redirect(url_for('profile'))
+
+    user = get_current_user()
+    if not user.has_subscription:
+        flash("Доступно только по подписке. Активируйте подписку для полного доступа.", "warning")
+        return redirect('/profile')
+
+    diet = Diet.query.filter_by(user_id=user.id).order_by(Diet.date.desc()).first()
     if not diet:
         flash("Диета ещё не сгенерирована. Сгенерируйте ее из профиля.", "info")
         return redirect('/profile')
@@ -943,7 +1101,6 @@ def diet():
                            lunch=json.loads(diet.lunch),
                            dinner=json.loads(diet.dinner),
                            snack=json.loads(diet.snack))
-
 
 @app.route('/upload_activity', methods=['POST'])
 def upload_activity():
@@ -1017,6 +1174,10 @@ def manual_activity():
 @app.route('/diet_history')
 @login_required
 def diet_history():
+    if not get_current_user().has_subscription:
+        flash("История диет доступна только по подписке.", "warning")
+        return redirect(url_for('profile'))
+
     user_id = session.get('user_id')
 
     today = date.today()
@@ -1056,6 +1217,10 @@ def diet_history():
 @app.route('/add_meal', methods=['POST'])
 @login_required
 def add_meal():
+    if not get_current_user().has_subscription:
+        flash("Доступ к группам и сообществу открыт только по подписке.", "warning")
+        return redirect(url_for('profile'))
+
     user_id = session.get('user_id')
     meal_type = request.form.get('meal_type')
     today = date.today()
@@ -1139,17 +1304,20 @@ def view_diet(diet_id):
 @login_required
 def reset_diet():
     user_id = session.get('user_id')
+    user = db.session.get(User, user_id)
 
-    diet = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
-    if diet and diet.date == date.today():  # Удаляем только диету за сегодня
-        db.session.delete(diet)
-        db.session.commit()
-        flash("Сегодняшняя диета успешно сброшена. Вы можете сгенерировать новую.", "success")
+    diet = Diet.query.filter_by(user_id=user.id, date=date.today()).first()
+    if diet:
+        try:
+            db.session.delete(diet)
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Рацион успешно сброшен.'})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': str(e)}), 500
     else:
-        flash("Нет сегодняшней диеты для сброса.", "info")
-
-    return redirect('/profile')
-
+        # Этот случай тоже обрабатываем, хотя он маловероятен
+        return jsonify({'success': True, 'message': 'Нет рациона для сброса.'})
 
 @app.route('/api/link_telegram', methods=['POST'])
 def link_telegram():
@@ -1308,6 +1476,8 @@ from flask import jsonify # Убедись, что jsonify импортиров�
 
 @app.route('/analyze_meal_photo', methods=['POST'])
 def analyze_meal_photo():
+    if not get_current_user().has_subscription:
+        return jsonify({"error": "Эта функция доступна только по подписке.", "subscription_required": True}), 403
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "Файл не найден"}), 400
@@ -1382,15 +1552,6 @@ def get_today_meals_api(chat_id):
 
 
 
-@app.route('/api/meals/today/<int:chat_id>')
-def get_today_meals(chat_id):
-    user = User.query.filter_by(telegram_chat_id=str(chat_id)).first_or_404()
-    logs = MealLog.query.filter_by(user_id=user.id, date=date.today()).all()
-    return jsonify([
-        {'meal_type': m.meal_type, 'analysis': m.analysis, 'time': m.created_at.isoformat()}
-        for m in logs
-    ]), 200
-
 
 @app.route('/metrics')
 @login_required
@@ -1410,7 +1571,7 @@ def metrics():
         .all()
 
     # 2) Базовый метаболизм из последнего замера
-    metabolism = latest_analysis.metabolism if latest_analysis else user.metabolism or 0
+    metabolism = latest_analysis.metabolism if latest_analysis else 0
 
     # 3) Активная калорийность
     activity = Activity.query.filter_by(user_id=user.id, date=date.today()).first()
@@ -1496,8 +1657,11 @@ def admin_dashboard():
         # statuses
         has_meal = MealLog.query.filter_by(user_id=u.id, date=today).count() > 0
         has_activity = Activity.query.filter_by(user_id=u.id, date=today).count() > 0
-        statuses[u.id] = {'meal': has_meal, 'activity': has_activity}
-
+        statuses[u.id] = {
+            'meal': has_meal,
+            'activity': has_activity,
+            'subscription_active': u.has_subscription  # Проверяем наличие активной подписки
+        }
         # meals
         meals = MealLog.query.filter_by(user_id=u.id, date=today).all()
         meals_data = [{
@@ -1773,6 +1937,9 @@ def admin_delete_user(user_id):
 @app.route('/groups')
 @login_required
 def groups_list():
+    if not get_current_user().has_subscription:
+        flash("Доступ к группам и сообществу открыт только по подписке.", "warning")
+        return redirect(url_for('profile'))
     user = get_current_user()
     # если тренер — показываем его группу (или кнопку создания)
     if user.is_trainer:
@@ -1808,7 +1975,14 @@ def create_group():
 
 @app.route('/groups/<int:group_id>')
 @login_required
+
 def group_detail(group_id):
+    # Ваша проверка подписки здесь
+    if not get_current_user().has_subscription:
+        flash("Доступ к группам и сообществу открыт только по подписке.", "warning")
+        # ИСПРАВЛЕНИЕ: Добавьте эту строку
+        return redirect(url_for('profile'))
+
     group = Group.query.get_or_404(group_id)
     user = get_current_user()
     is_member = any(m.user_id == user.id for m in group.members)
@@ -2025,7 +2199,7 @@ def create_group_task(group_id):
             message_text = f"🔔 **{task_type} от тренера {user.name}**\n\n**{title}**\n\n_{description}_"
 
             # URL вашего бота (нужно будет указать, когда бот будет на сервере)
-            BOT_WEBHOOK_URL = os.getenv("BOT_WEBHOOK_URL")  # Например, https://your-bot-domain.com/notify
+            BOT_WEBHOOK_URL = os.getenv("BOT_WEBHOOK_URL")  # Например, [https://your-bot-domain.com/notify](https://your-bot-domain.com/notify)
             BOT_SECRET_TOKEN = os.getenv("BOT_SECRET_TOKEN")  # Секретный токен для безопасности
 
             if BOT_WEBHOOK_URL and BOT_SECRET_TOKEN:
@@ -2284,6 +2458,469 @@ def admin_delete_group(group_id):
         db.session.rollback()
         flash(f"Ошибка при удалении группы: {e}", "error")
     return redirect(url_for("admin_groups_list"))
+
+
+# Найдите и замените существующую функцию admin_grant_subscription
+
+@app.route("/admin/user/<int:user_id>/subscribe", methods=["POST"])
+@admin_required
+def admin_grant_subscription(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Пользователь не найден", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    duration = request.form.get('duration')
+    if not duration:
+        flash("Не выбран период подписки.", "error")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    today = date.today()
+    end_date = None
+
+    # Определяем дату окончания на основе выбора
+    if duration == '1m':
+        end_date = today + timedelta(days=30)
+        message = "Подписка на 1 месяц успешно выдана!"
+    elif duration == '3m':
+        end_date = today + timedelta(days=90)
+        message = "Подписка на 3 месяца успешно выдана!"
+    elif duration == '6m':
+        end_date = today + timedelta(days=180)
+        message = "Подписка на 6 месяцев успешно выдана!"
+    elif duration == '12m':
+        end_date = today + timedelta(days=365)
+        message = "Подписка на 1 год успешно выдана!"
+    elif duration == 'unlimited':
+        end_date = None  # None означает безлимитную подписку
+        message = "Безлимитная подписка успешно выдана!"
+    else:
+        flash("Некорректный период подписки.", "error")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    existing_subscription = Subscription.query.filter_by(user_id=user.id).first()
+
+    if existing_subscription:
+        # Если подписка уже есть, обновляем её
+        existing_subscription.start_date = today
+        existing_subscription.end_date = end_date
+        existing_subscription.source = 'admin_update'
+    else:
+        # Если подписки нет, создаем новую
+        new_subscription = Subscription(
+            user_id=user.id,
+            start_date=today,
+            end_date=end_date,
+            source='admin_grant'
+        )
+        db.session.add(new_subscription)
+
+    db.session.commit()
+    flash(message, "success")
+    return redirect(url_for("admin_user_detail", user_id=user.id))
+
+with app.app_context():
+    db.create_all()
+
+
+# Удалите старый @app.route("/admin/user/<int:user_id>/subscribe")
+# И добавьте этот новый маршрут
+
+@app.route("/admin/user/<int:user_id>/manage_subscription", methods=["POST"])
+@admin_required
+def manage_subscription(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Пользователь не найден", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    action = request.form.get('action')
+    sub = Subscription.query.filter_by(user_id=user_id).first()
+    today = date.today()
+
+    try:
+        if action == 'grant':
+            duration = request.form.get('duration')
+            start_date_str = request.form.get('start_date')
+
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else today
+
+            end_date = None
+            if duration == 'unlimited':
+                end_date = None
+            else:  # 1m, 3m, 6m, 12m
+                months = {'1m': 1, '3m': 3, '6m': 6, '12m': 12}
+                # Рассчитываем дельту от даты старта
+                end_date = start_date + timedelta(days=30 * months.get(duration, 0))
+
+            if sub:
+                sub.start_date = start_date
+                sub.end_date = end_date
+                sub.status = 'active'
+                sub.remaining_days_on_freeze = None
+                flash("Подписка успешно обновлена.", "success")
+            else:
+                sub = Subscription(user_id=user.id, start_date=start_date, end_date=end_date, source='admin_grant')
+                db.session.add(sub)
+                flash("Подписка успешно выдана.", "success")
+
+                # --- ДОБАВЬТЕ ЭТУ СТРОКУ ---
+                # Устанавливаем флаг, чтобы показать пользователю приветствие
+            user.show_welcome_popup = True
+        elif action == 'remove':
+            if sub:
+                db.session.delete(sub)
+                flash("Подписка успешно удалена.", "success")
+            else:
+                flash("У пользователя нет подписки для удаления.", "warning")
+
+        elif action == 'freeze':
+            if sub and sub.status == 'active' and sub.end_date:
+                remaining = (sub.end_date - today).days
+                sub.remaining_days_on_freeze = max(0, remaining)  # Сохраняем оставшиеся дни
+                sub.status = 'frozen'
+                flash(f"Подписка заморожена. Оставалось дней: {sub.remaining_days_on_freeze}", "success")
+            else:
+                flash("Невозможно заморозить: подписка неактивна, безлимитная или уже заморожена.", "warning")
+
+        elif action == 'unfreeze':
+            if sub and sub.status == 'frozen':
+                days_to_add = sub.remaining_days_on_freeze or 0
+                sub.end_date = today + timedelta(days=days_to_add)  # Восстанавливаем срок
+                sub.status = 'active'
+                sub.remaining_days_on_freeze = None
+                flash(f"Подписка разморожена. Новая дата окончания: {sub.end_date.strftime('%d.%m.%Y')}", "success")
+            else:
+                flash("Подписка не была заморожена.", "warning")
+
+        else:
+            flash("Неизвестное действие.", "error")
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Произошла ошибка: {e}", "error")
+
+    return redirect(url_for("admin_user_detail", user_id=user.id))
+
+@app.route('/api/dismiss_welcome_popup', methods=['POST'])
+@login_required
+def dismiss_welcome_popup():
+    """API-маршрут, который вызывается, когда пользователь закрывает приветственное окно."""
+    user = get_current_user()
+    if user:
+        user.show_welcome_popup = False
+        db.session.commit()
+        return jsonify({'status': 'ok'}), 200
+    return jsonify({'status': 'error', 'message': 'User not found'}), 404
+
+
+# ... импорты datetime, date, timedelta должны быть вверху файла ...
+
+@app.route('/subscription/manage', methods=['POST'])
+@login_required
+def manage_user_subscription():
+    user = get_current_user()
+    action = request.form.get('action')
+    sub = user.subscription  # Получаем подписку текущего пользователя
+
+    if not sub:
+        flash("У вас нет активной подписки для управления.", "warning")
+        return redirect(url_for('profile'))
+
+    today = date.today()
+
+    try:
+        if action == 'freeze':
+            if sub.status == 'active' and sub.end_date:
+                remaining_days = (sub.end_date - today).days
+                if remaining_days > 0:
+                    sub.status = 'frozen'
+                    sub.remaining_days_on_freeze = remaining_days
+                    flash(f"Подписка успешно заморожена. Оставалось {remaining_days} дней.", "success")
+                else:
+                    flash("Срок действия подписки уже истёк, заморозка невозможна.", "warning")
+            else:
+                flash("Эту подписку невозможно заморозить.", "warning")
+
+        elif action == 'unfreeze':
+            if sub.status == 'frozen':
+                days_to_add = sub.remaining_days_on_freeze or 0
+                sub.end_date = today + timedelta(days=days_to_add)
+                sub.status = 'active'
+                sub.remaining_days_on_freeze = None
+                flash(f"Подписка разморожена! Новая дата окончания: {sub.end_date.strftime('%d.%m.%Y')}", "success")
+            else:
+                flash("Подписка не была заморожена.", "warning")
+
+        else:
+            flash("Неизвестное действие.", "error")
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Произошла ошибка: {e}", "error")
+
+    return redirect(url_for('profile'))
+
+
+# ... другие маршруты
+
+@app.route('/welcome-guide')
+@login_required  # Только для залогиненных пользователей
+def welcome_guide():
+    # Убедимся, что у пользователя есть подписка, чтобы видеть эту страницу
+    if not get_current_user().has_subscription:
+        flash("Эта страница доступна только для пользователей с активной подпиской.", "warning")
+        return redirect(url_for('profile'))
+
+    return render_template('welcome_guide.html')
+
+
+from sqlalchemy import text  # Убедитесь, что text импортирован из sqlalchemy
+
+
+@app.route('/api/user/weekly_summary')
+@login_required
+def weekly_summary():
+    if not get_current_user().has_subscription:
+        return jsonify({"error": "Subscription required"}), 403
+
+    user_id = session.get('user_id')
+    today = date.today()
+    week_ago = today - timedelta(days=6)
+
+    labels = [(week_ago + timedelta(days=i)).strftime("%a") for i in range(7)]
+
+    # 1. Данные по весу (здесь ошибки не было, код без изменений)
+    weight_data = db.session.execute(text(f"""
+        SELECT strftime('%w', timestamp) as day_of_week, AVG(weight) as avg_weight
+        FROM body_analysis
+        WHERE user_id = {user_id} AND date(timestamp) BETWEEN '{week_ago}' AND '{today}'
+        GROUP BY day_of_week
+        ORDER BY day_of_week
+    """)).fetchall()
+
+    # 2. Потребленные калории (сумма за каждый день)
+    meals_sql = text("""
+        SELECT date, SUM(calories) as total_calories FROM meal_logs 
+        WHERE user_id = :user_id AND date BETWEEN :week_ago AND :today 
+        GROUP BY date
+    """)
+    meal_logs = db.session.execute(meals_sql, {'user_id': user_id, 'week_ago': week_ago, 'today': today}).fetchall()
+
+    # --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    # Убираем .strftime(), так как row.date уже является строкой 'YYYY-MM-DD'
+    meals_map = {row.date: row.total_calories for row in meal_logs}
+
+    # 3. Сожженные активные калории
+    activity_sql = text("""
+        SELECT date, active_kcal FROM activity 
+        WHERE user_id = :user_id AND date BETWEEN :week_ago AND :today
+    """)
+    activities = db.session.execute(activity_sql, {'user_id': user_id, 'week_ago': week_ago, 'today': today}).fetchall()
+
+    # --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    # То же самое: убираем .strftime()
+    activity_map = {row.date: row.active_kcal for row in activities}
+
+    # Собираем данные в массивы по дням
+    weight_values = [
+        next((w.avg_weight for w in weight_data if int(w.day_of_week) == (week_ago + timedelta(days=i)).weekday()),
+             None) for i in range(7)]
+    consumed_kcal_values = [meals_map.get((week_ago + timedelta(days=i)).strftime('%Y-%m-%d'), 0) for i in range(7)]
+    burned_kcal_values = [activity_map.get((week_ago + timedelta(days=i)).strftime('%Y-%m-%d'), 0) for i in range(7)]
+
+    return jsonify({
+        "labels": labels,
+        "datasets": {
+            "weight": weight_values,
+            "consumed_kcal": consumed_kcal_values,
+            "burned_kcal": burned_kcal_values
+        }
+    })
+
+
+@app.route('/api/user/deficit_history')
+@login_required
+def deficit_history():
+    user = get_current_user()
+    latest_analysis = user.latest_analysis
+
+    # Убедимся, что есть данные для расчета
+    if not (latest_analysis and latest_analysis.fat_mass and user.fat_mass_goal):
+        return jsonify({"error": "Недостаточно данных для расчета истории дефицита."}), 404
+
+    start_datetime = latest_analysis.timestamp
+    today = date.today()
+
+    # Запрашиваем все нужные данные за период одним разом
+    meal_logs = MealLog.query.filter(
+        MealLog.user_id == user.id,
+        MealLog.date >= start_datetime.date()
+    ).all()
+    activity_logs = Activity.query.filter(
+        Activity.user_id == user.id,
+        Activity.date >= start_datetime.date()
+    ).all()
+
+    # Создаем словари для быстрого доступа
+    meals_map = {}
+    for log in meal_logs:
+        if log.date not in meals_map:
+            meals_map[log.date] = 0
+        meals_map[log.date] += log.calories
+
+    activity_map = {log.date: log.active_kcal for log in activity_logs}
+
+    history_data = []
+    metabolism = latest_analysis.metabolism or 0
+    delta_days = (today - start_datetime.date()).days
+
+    for i in range(delta_days + 1):
+        current_day = start_datetime.date() + timedelta(days=i)
+
+        consumed = meals_map.get(current_day, 0)
+        burned_active = activity_map.get(current_day, 0)
+
+        # Особая логика для первого дня (как и в основном расчете)
+        if i == 0:
+            calories_before_analysis = db.session.query(func.sum(MealLog.calories)).filter(
+                MealLog.user_id == user.id,
+                MealLog.date == current_day,
+                MealLog.created_at < start_datetime
+            ).scalar() or 0
+            consumed -= calories_before_analysis
+            burned_active = 0  # Активность за первый день не учитываем для точности
+
+        total_burned = metabolism + burned_active
+        daily_deficit = total_burned - consumed
+
+        history_data.append({
+            "date": current_day.strftime('%d.%m.%Y'),
+            "consumed": consumed,
+            "base_metabolism": metabolism,
+            "burned_active": burned_active,
+            "total_burned": total_burned,
+            "deficit": daily_deficit if daily_deficit > 0 else 0  # Считаем только положительный дефицит
+        })
+
+    return jsonify(history_data)
+
+
+@app.route('/purchase')
+@login_required
+def purchase_page():
+    """Отображает страницу выбора и покупки подписки."""
+    # Цены можно вынести в конфигурацию, но для простоты оставим здесь
+    subscription_plans = {
+        '1m': {'name': '1 месяц', 'price': 2990},
+        '6m': {'name': '6 месяцев', 'price': 14990},
+        '12m': {'name': '1 год', 'price': 24990},
+    }
+    return render_template('purchase.html', plans=subscription_plans)
+
+
+@app.route('/api/kaspi/generate_qr', methods=['POST'])
+@login_required
+def generate_kaspi_qr():
+    """Создает заказ в нашей системе и генерирует QR-код для оплаты."""
+    user = get_current_user()
+    data = request.get_json()
+    sub_type = data.get('subscription_type')
+    amount = data.get('amount')
+
+    if not sub_type or not amount:
+        return jsonify({"error": "Отсутствуют данные о подписке."}), 400
+
+    # 1. Создаем заказ в нашей базе данных
+    new_order = Order(
+        user_id=user.id,
+        subscription_type=sub_type,
+        amount=float(amount)
+    )
+    db.session.add(new_order)
+    db.session.commit()
+
+    # 2. --- SIMULATE KASPI API CALL ---
+    #    Здесь должен быть реальный HTTP-запрос к API Kaspi для создания счета.
+    #    Вам нужно будет передать `new_order.order_id` и `new_order.amount`.
+    #    В заголовках необходимо передать 'X-Auth-Token': KASPI_API_TOKEN
+
+    #    Пример тела запроса (уточните по документации Kaspi):
+    #    payload = { "merchantInvoiceId": new_order.order_id, "amount": new_order.amount }
+    #    headers = { "X-Auth-Token": KASPI_API_TOKEN }
+    #    response = requests.post(f"{KASPI_API_URL}/invoices", json=payload, headers=headers)
+
+    #    Вместо реального запроса мы симулируем успешный ответ:
+    print(f"SIMULATING: Generating Kaspi QR for order {new_order.order_id} with amount {new_order.amount}")
+
+    # Kaspi в ответ вернет ID своего счета и данные для QR
+    kaspi_invoice_id = f"KASPI_{new_order.order_id}"
+    qr_data_string = f"https://kaspi.kz/pay/{kaspi_invoice_id}"
+
+    # Сохраняем ID от Kaspi в наш заказ
+    new_order.kaspi_invoice_id = kaspi_invoice_id
+    db.session.commit()
+
+    return jsonify({
+        "orderId": new_order.order_id,
+        "qrData": qr_data_string
+    })
+
+
+@app.route('/api/kaspi/status/<order_id>')
+@login_required
+def get_payment_status(order_id):
+    """Проверяет статус оплаты заказа. Вызывается с фронтенда каждые несколько секунд."""
+    order = Order.query.filter_by(order_id=order_id, user_id=get_current_user().id).first_or_404()
+
+    # Если заказ уже оплачен, просто возвращаем статус
+    if order.status == 'paid':
+        return jsonify({"status": "paid"})
+
+    # --- SIMULATE KASPI STATUS CHECK ---
+    #    Здесь должен быть реальный HTTP-запрос к API Kaspi для проверки статуса счета.
+    #    response = requests.get(f"{KASPI_API_URL}/invoices/{order.kaspi_invoice_id}", headers=headers)
+    #    kaspi_status = response.json().get('status')
+
+    #    Вместо этого мы симулируем оплату через 10 секунд после создания заказа
+    seconds_since_creation = (datetime.utcnow() - order.created_at).total_seconds()
+
+    if seconds_since_creation > 10:
+        # Симулируем успешную оплату
+        order.status = 'paid'
+        order.paid_at = datetime.utcnow()
+
+        # Выдаем подписку пользователю
+        # Логика скопирована из manage_subscription
+        months_map = {'1m': 1, '6m': 6, '12m': 12}
+        months_to_add = months_map.get(order.subscription_type, 1)
+
+        today = date.today()
+        end_date = today + timedelta(days=30 * months_to_add)
+
+        sub = Subscription.query.filter_by(user_id=order.user_id).first()
+        if sub:
+            sub.start_date = today
+            sub.end_date = end_date
+            sub.status = 'active'
+            sub.source = 'kaspi_payment'
+        else:
+            sub = Subscription(user_id=order.user_id, start_date=today, end_date=end_date, source='kaspi_payment')
+            db.session.add(sub)
+
+        user = User.query.get(order.user_id)
+        user.show_welcome_popup = True
+
+        db.session.commit()
+        print(f"SIMULATING: Order {order.order_id} is PAID. Subscription granted.")
+        return jsonify({"status": "paid"})
+    else:
+        # Пока 10 секунд не прошло, возвращаем "в ожидании"
+        return jsonify({"status": "pending"})
 
 
 if __name__ == '__main__':

@@ -1,7 +1,98 @@
 {% extends 'base.html' %}
 {% block content %}
+{% if just_activated %}
+<div id="subscriptionPopupOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div id="subscriptionPopupContent" class="card w-full max-w-lg p-6 sm:p-8 relative text-center animate-fade-in">
 
+        <button onclick="closeSubscriptionPopup()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600 transition-colors">&times;</button>
+
+        <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-green-400 to-blue-500 mb-5 shadow-lg">
+            <span class="text-4xl text-white">🎉</span>
+        </div>
+
+        <h2 class="text-2xl font-bold text-slate-900">Подписка успешно активирована!</h2>
+        <p class="text-slate-600 mt-2">Добро пожаловать в мир новых возможностей! Теперь вам доступны все функции, включая генерацию персональных диет и глубокую аналитику.</p>
+
+        <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+    <button onclick="closeSubscriptionPopup()" class="btn btn-primary">
+        🚀 Начать пользоваться
+    </button>
+    <a href="{{ url_for('welcome_guide') }}" class="btn btn-secondary">
+        🤔 Что я получил?
+    </a>
+</div>
+    </div>
+</div>
+
+<script>
+    const popupOverlay = document.getElementById('subscriptionPopupOverlay');
+
+   function closeSubscriptionPopup() {
+    if (popupOverlay) {
+        // 1. Отправляем запрос на сервер, чтобы он "запомнил", что окно закрыто
+        fetch('/api/dismiss_welcome_popup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).catch(err => console.error("Failed to dismiss popup on server:", err));
+
+        // 2. Плавно скрываем окно, как и раньше
+        popupOverlay.style.transition = 'opacity 0.3s ease';
+        popupOverlay.style.opacity = '0';
+        setTimeout(() => {
+            popupOverlay.style.display = 'none';
+        }, 300);
+    }
+}
+
+    // Закрытие по клику на фон
+    if (popupOverlay) {
+        popupOverlay.addEventListener('click', function(event) {
+            if (event.target === popupOverlay) {
+                closeSubscriptionPopup();
+            }
+        });
+    }
+
+    // Закрытие по нажатию на клавишу Escape
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeSubscriptionPopup();
+        }
+    });
+</script>
+{% endif %}
 <style>
+    /* Стиль для заблокированных элементов */
+    .locked-feature {
+        position: relative;
+        opacity: 0.6;
+        filter: grayscale(80%);
+        pointer-events: none; /* Блокирует клики по дочерним элементам */
+    }
+    .locked-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(241, 245, 249, 0.7); /* slate-100 с прозрачностью */
+        border-radius: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 1rem;
+        z-index: 10;
+        pointer-events: auto; /* Восстанавливаем клики для оверлея */
+    }
+    .locked-text {
+        font-weight: 600;
+        color: #1e293b; /* slate-800 */
+    }
+    .locked-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
 
     .progress-bar-animate { transition: width 0.5s ease-out; }
 
@@ -382,7 +473,8 @@
                 {% set value = latest_analysis[field] if latest_analysis else '—' %}
                 <div class="p-2 bg-slate-50 rounded-lg border border-slate-200">
                     <div class="text-sm text-slate-500">{{ label }}</div>
-                    <div class="text-xl font-bold text-slate-800 mt-1">{{ value|round(1) }}</div>
+                    <div class="text-xl font-bold text-slate-800 mt-1">{{ value|float|round(1) if value is not none else '' }}
+</div>
                 </div>
               {% endfor %}
             </div>
@@ -415,6 +507,68 @@
         </div>
     </div>
 
+    {% if user.subscription %}
+      <div class="card p-6">
+        <h3 class="text-lg font-bold text-slate-800 mb-3">Статус подписки</h3>
+
+        {% if user.subscription.status == 'active' %}
+          <div class="p-4 rounded-lg bg-gradient-to-br from-green-400 to-blue-500 text-white shadow-lg">
+              <div class="flex items-center justify-between">
+                  <span class="font-bold text-lg">👑 Активна</span>
+                  <span class="text-sm opacity-90">
+                      {% if user.subscription.end_date %}
+                          до {{ user.subscription.end_date.strftime('%d.%m.%Y') }}
+                      {% else %}
+                          Безлимитная
+                      {% endif %}
+                  </span>
+              </div>
+          </div>
+          {% if user.subscription.end_date %}
+            <form action="{{ url_for('manage_user_subscription') }}" method="POST" class="mt-4">
+              <input type="hidden" name="action" value="freeze">
+              <button type="submit"
+                      onclick="return confirm('Вы уверены, что хотите заморозить подписку? Доступ к платным функциям будет приостановлен, а оставшийся срок сохранен.')"
+                      class="btn btn-secondary w-full text-sm">
+                  ❄️ Заморозить подписку
+              </button>
+            </form>
+          {% endif %}
+
+        {% elif user.subscription.status == 'frozen' %}
+          <div class="p-4 rounded-lg bg-slate-200 text-slate-800 border border-slate-300">
+              <div class="flex items-center justify-between">
+                  <span class="font-bold text-lg">❄️ Заморожена</span>
+                  <span class="text-sm font-medium">
+                      Осталось: {{ user.subscription.remaining_days_on_freeze }} дн.
+                  </span>
+              </div>
+          </div>
+          <form action="{{ url_for('manage_user_subscription') }}" method="POST" class="mt-4">
+            <input type="hidden" name="action" value="unfreeze">
+            <button type="submit"
+                    onclick="return confirm('Вы уверены, что хотите разморозить подписку? Срок ее действия начнет отсчитываться с сегодняшнего дня.')"
+                    class="btn btn-primary w-full text-sm">
+                🔥 Активировать снова
+            </button>
+          </form>
+
+        {% else %}
+            <div class="p-4 rounded-lg bg-red-100 text-red-800 border border-red-200 text-center">
+                <p class="font-semibold">Подписка неактивна (статус: {{ user.subscription.status }})</p>
+            </div>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="card p-6 bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-center shadow-xl">
+          <h3 class="font-bold text-xl">🚀 Расширьте возможности</h3>
+          <p class="text-sm text-white/80 mt-1 mb-4">Получите доступ к генерации диет, аналитике и эксклюзивным функциям, оформив подписку.</p>
+          <a href="#" class="btn bg-white text-blue-600 hover:bg-slate-100 w-full">
+              Узнать больше о подписке
+          </a>
+      </div>
+    {% endif %}
+
     {% if not user.telegram_chat_id %}
     <div class="card p-6 bg-blue-50 border-blue-200 text-center">
         <h3 class="font-bold text-blue-800">Получайте уведомления в Telegram</h3>
@@ -425,20 +579,39 @@
         </button>
     </div>
     {% endif %}
+    {% if not current_user.has_subscription %}
+<div class="card p-6 bg-green-50 border-green-200 text-center">
+    <h3 class="font-bold text-green-800">Активируйте все возможности</h3>
+    <p class="text-sm text-green-700 mt-1 mb-4">Выберите один из наших планов, чтобы получить доступ к генерации диет и другим премиум-функциям.</p>
+    <a href="{{ url_for('purchase_page') }}" class="btn bg-green-600 hover:bg-green-700 text-white w-full">
+        ✨ Выбрать подписку
+    </a>
+</div>
+{% endif %}
 
-    <div class="card p-6">
-        <h3 class="text-lg font-bold mb-3 text-slate-800">Сообщество</h3>
-        {% if user_joined_group %}
-          <a href="{{ url_for('group_detail', group_id=user_joined_group.id) }}" class="block p-4 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg hover:shadow-xl transition-shadow">
-            <span class="font-semibold text-lg">Моя группа: {{ user_joined_group.name }}</span>
-            {% if user_joined_group.description %}<p class="text-sm opacity-80 mt-1">{{ user_joined_group.description }}</p>{% endif %}
-            <span class="block text-xs mt-3 opacity-90">Перейти в группу →</span>
-          </a>
-        {% else %}
-          <div class="text-center p-4 border-2 border-dashed border-slate-300 rounded-lg">
-            <p class="text-slate-600 mb-3">Вы еще не в группе. Найдите свою команду!</p>
-            <a href="{{ url_for('groups_list') }}" class="btn btn-primary w-full">Вступить или создать</a>
-          </div>
+    <div class="card p-6 relative">
+        <div {% if not current_user.has_subscription %}class="locked-feature"{% endif %}>
+            <h3 class="text-lg font-bold mb-3 text-slate-800">Сообщество</h3>
+            {% if user_joined_group %}
+              <a href="{{ url_for('group_detail', group_id=user_joined_group.id) }}" class="block p-4 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg hover:shadow-xl transition-shadow">
+                <span class="font-semibold text-lg">Моя группа: {{ user_joined_group.name }}</span>
+                {% if user_joined_group.description %}<p class="text-sm opacity-80 mt-1">{{ user_joined_group.description }}</p>{% endif %}
+                <span class="block text-xs mt-3 opacity-90">Перейти в группу →</span>
+              </a>
+            {% else %}
+              <div class="text-center p-4 border-2 border-dashed border-slate-300 rounded-lg">
+                <p class="text-slate-600 mb-3">Вы еще не в группе. Найдите свою команду!</p>
+                <a href="{{ url_for('groups_list') }}" class="btn btn-primary w-full">Вступить или создать</a>
+              </div>
+            {% endif %}
+        </div>
+        {% if not current_user.has_subscription %}
+        <div class="locked-overlay">
+            <div class="locked-icon">🔒</div>
+            <p class="locked-text">Доступ к группам</p>
+            <p class="text-sm text-slate-600 mb-3">открыт по подписке</p>
+            <a href="#" class="btn btn-primary btn-sm">Активировать</a>
+        </div>
         {% endif %}
     </div>
 
@@ -452,8 +625,9 @@
 </div>
     <div class="lg:col-span-2 space-y-6">
 
-      {% if fat_loss_progress %}
-      <div class="card p-6">
+
+      {% if fat_loss_progress and current_user.has_subscription %}
+      <div class="card p-6 cursor-pointer hover:shadow-lg transition-shadow" onclick="showDeficitHistory()">
         <h3 class="text-lg font-bold text-slate-800 mb-1">🔥 Прогресс жиросжигания</h3>
         <p class="text-sm text-slate-500 mb-4">На основе суммарного дефицита калорий.</p>
         <div class="progress-bar-bg">
@@ -481,76 +655,124 @@
       </div>
       {% endif %}
 
-      <div class="card p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-slate-800">📈 Ваш рацион</h3>
-            {% if diet %}
-            <form action="/reset_diet" method="POST">
-              <button type="submit" class="text-sm font-semibold text-red-500 hover:text-red-700">Пересоздать</button>
-            </form>
-            {% endif %}
+<div class="card p-6 relative">
+        <div {% if not current_user.has_subscription %}class="locked-feature"{% endif %}>
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Динамика за неделю</h3>
+           <div class="grid md:grid-cols-3 gap-6 text-center">
+    <div>
+        <div class="text-sm font-semibold text-slate-600 mb-2">Вес, кг</div>
+        <div class="relative h-24 w-full">
+            <canvas id="weightChart"></canvas>
         </div>
-
-        {% if diet %}
-          <a href="/diet" class="block space-y-4">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-slate-700">
-                <div class="bg-green-50 py-2 rounded-lg border border-green-200"><div class="text-xs text-green-800">Калории</div><div class="font-bold">{{ diet.total_kcal }} ккал</div></div>
-                <div class="bg-blue-50 py-2 rounded-lg border border-blue-200"><div class="text-xs text-blue-800">Белки</div><div class="font-bold">{{ diet.protein }} г</div></div>
-                <div class="bg-yellow-50 py-2 rounded-lg border border-yellow-200"><div class="text-xs text-yellow-800">Жиры</div><div class="font-bold">{{ diet.fat }} г</div></div>
-                <div class="bg-purple-50 py-2 rounded-lg border border-purple-200"><div class="text-xs text-purple-800">Углеводы</div><div class="font-bold">{{ diet.carbs }} г</div></div>
-            </div>
-            {% for meal_name, meal_items in {
-                '🍳 Завтрак': breakfast, '🍲 Обед': lunch, '🍝 Ужин': dinner, '🍎 Перекус': snack
-            }.items() %}
-            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <div class="font-semibold text-slate-700 mb-2 text-sm">{{ meal_name }}</div>
-              <ul class="space-y-1 text-sm text-slate-600">
-              {% for itm in meal_items %}
-                <li class="flex justify-between"><span>{{ itm.name }}</span><span class="text-xs text-slate-500">{{ itm.grams }}г, {{ itm.kcal }} ккал</span></li>
-              {% else %}
-                 <li class="text-slate-400 text-xs">Нет блюд в этом приёме.</li>
-              {% endfor %}
-              </ul>
-            </div>
-            {% endfor %}
-          </a>
-{% elif latest_analysis and latest_analysis.height and latest_analysis.weight and latest_analysis.muscle_mass and latest_analysis.fat_mass and latest_analysis.metabolism %}
-          <form id="dietForm" class="space-y-6">
-            <div>
-              <label class="block text-sm font-medium mb-2 text-slate-700">Ваша цель</label>
-              <div class="grid grid-cols-3 gap-3">
-                {% for g in [{'label': 'Набор', 'icon': '💪', 'value': 'muscle'},{'label': 'Похудение', 'icon': '🔥', 'value': 'loss'},{'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain'}] %}
-                  <div class="selection-card text-center" data-group="goal" data-value="{{ g.value }}">
-                    <div class="text-3xl">{{ g.icon }}</div><div class="text-sm mt-1 font-semibold">{{ g.label }}</div>
-                  </div>
-                {% endfor %}
-              </div>
-              <input type="hidden" name="goal" id="goalInput">
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2 text-slate-700">Ваш пол</label>
-              <div class="grid grid-cols-2 gap-3">
-                {% for g in [{'label': 'Мужской', 'icon': '♂️', 'value': 'male'},{'label': 'Женский', 'icon': '♀️', 'value': 'female'}] %}
-                  <div class="selection-card text-center" data-group="gender" data-value="{{ g.value }}">
-                    <span class="text-xl mr-2">{{ g.icon }}</span><span class="font-semibold">{{ g.label }}</span>
-                  </div>
-                {% endfor %}
-              </div>
-              <input type="hidden" name="gender" id="genderInput">
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-2 text-slate-700">Предпочтения (не обязательно)</label>
-              <textarea name="preferences" rows="2" class="form-input" placeholder="Например: без рыбы, больше курицы"></textarea>
-            </div>
-            <button type="button" onclick="startDietGeneration()" class="btn btn-primary w-full">✨ Сгенерировать рацион</button>
-          </form>
-        {% else %}
-          <p class="text-center text-slate-500 py-8">Пожалуйста, загрузите свой анализ тела, чтобы мы могли сгенерировать для вас персональный рацион.</p>
+    </div>
+    <div>
+        <div class="text-sm font-semibold text-slate-600 mb-2">Потреблено, ккал</div>
+        <div class="relative h-24 w-full">
+            <canvas id="mealsChart"></canvas>
+        </div>
+    </div>
+    <div>
+        <div class="text-sm font-semibold text-slate-600 mb-2">Сожжено, ккал</div>
+        <div class="relative h-24 w-full">
+            <canvas id="activityChart"></canvas>
+        </div>
+    </div>
+</div>
+        </div>
+        {% if not current_user.has_subscription %}
+        <div class="locked-overlay">
+            <div class="locked-icon">📊</div>
+            <p class="locked-text">Визуальная аналитика</p>
+            <p class="text-sm text-slate-600 mb-3">доступна по подписке</p>
+            <a href="#" class="btn btn-primary btn-sm">Активировать PRO</a>
+        </div>
         {% endif %}
+    </div>
+    <div id="diet-card-container" class="card p-6 relative">
+
+          <div id="diet-display-section" {% if not diet %}style="display: none;"{% endif %}>
+              <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-bold text-slate-800">📈 Ваш сгенерированный рацион</h3>
+                  <button onclick="confirmAndResetDiet()" class="text-sm font-semibold text-red-500 hover:text-red-700">
+                      Пересоздать
+                  </button>
+              </div>
+
+              {% if diet %}
+              <a href="/diet" class="block space-y-4">
+                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-slate-700">
+                      <div class="bg-green-50 py-2 rounded-lg border border-green-200"><div class="text-xs text-green-800">Калории</div><div class="font-bold">{{ diet.total_kcal }} ккал</div></div>
+                      <div class="bg-blue-50 py-2 rounded-lg border border-blue-200"><div class="text-xs text-blue-800">Белки</div><div class="font-bold">{{ diet.protein }} г</div></div>
+                      <div class="bg-yellow-50 py-2 rounded-lg border border-yellow-200"><div class="text-xs text-yellow-800">Жиры</div><div class="font-bold">{{ diet.fat }} г</div></div>
+                      <div class="bg-purple-50 py-2 rounded-lg border border-purple-200"><div class="text-xs text-purple-800">Углеводы</div><div class="font-bold">{{ diet.carbs }} г</div></div>
+                  </div>
+                  {% for meal_name, meal_items in {
+                      '🍳 Завтрак': breakfast, '🍲 Обед': lunch, '🍝 Ужин': dinner, '🍎 Перекус': snack
+                  }.items() %}
+                  <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-semibold text-slate-700 mb-2 text-sm">{{ meal_name }}</div>
+                    <ul class="space-y-1 text-sm text-slate-600">
+                    {% for itm in meal_items %}
+                      <li class="flex justify-between"><span>{{ itm.name }}</span><span class="text-xs text-slate-500">{{ itm.grams }}г, {{ itm.kcal }} ккал</span></li>
+                    {% else %}
+                       <li class="text-slate-400 text-xs">Нет блюд в этом приёме.</li>
+                    {% endfor %}
+                    </ul>
+                  </div>
+                  {% endfor %}
+              </a>
+              {% endif %}
+          </div>
+
+          <div id="diet-generation-section" {% if diet %}style="display: none;"{% endif %}>
+              <div {% if not current_user.has_subscription %}class="locked-feature"{% endif %}>
+                  <h3 class="text-lg font-bold text-slate-800 mb-4">📈 Создать рацион</h3>
+
+                  {% if latest_analysis and latest_analysis.height and latest_analysis.weight %}
+                    <form id="dietForm" class="space-y-6">
+                      <div>
+                        <label class="block text-sm font-medium mb-2 text-slate-700">Ваша цель</label>
+                        <div class="grid grid-cols-3 gap-3">
+                          {% for g in [{'label': 'Набор', 'icon': '💪', 'value': 'muscle'},{'label': 'Похудение', 'icon': '🔥', 'value': 'loss'},{'label': 'Поддержание', 'icon': '⚖️', 'value': 'maintain'}] %}
+                            <div class="selection-card text-center" data-group="goal" data-value="{{ g.value }}">
+                              <div class="text-3xl">{{ g.icon }}</div><div class="text-sm mt-1 font-semibold">{{ g.label }}</div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                        <input type="hidden" name="goal" id="goalInput">
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium mb-2 text-slate-700">Ваш пол</label>
+                        <div class="grid grid-cols-2 gap-3">
+                          {% for g in [{'label': 'Мужской', 'icon': '♂️', 'value': 'male'},{'label': 'Женский', 'icon': '♀️', 'value': 'female'}] %}
+                            <div class="selection-card text-center" data-group="gender" data-value="{{ g.value }}">
+                              <span class="text-xl mr-2">{{ g.icon }}</span><span class="font-semibold">{{ g.label }}</span>
+                            </div>
+                          {% endfor %}
+                        </div>
+                        <input type="hidden" name="gender" id="genderInput">
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium mb-2 text-slate-700">Предпочтения (не обязательно)</label>
+                        <textarea name="preferences" rows="2" class="form-input" placeholder="Например: без рыбы, больше курицы"></textarea>
+                      </div>
+                      <button type="button" onclick="startDietGeneration()" class="btn btn-primary w-full">✨ Сгенерировать рацион</button>
+                    </form>
+                  {% else %}
+                    <p class="text-center text-slate-500 py-8">Пожалуйста, загрузите свой анализ тела, чтобы мы могли сгенерировать для вас персональный рацион.</p>
+                  {% endif %}
+               </div>
+               {% if not current_user.has_subscription %}
+               <div class="locked-overlay">
+                   <div class="locked-icon">🍽️</div>
+                   <p class="locked-text">Персональная диета</p>
+                   <p class="text-sm text-slate-600 mb-3">доступна по подписке</p>
+                   <a href="#" class="btn btn-primary btn-sm">Активировать</a>
+               </div>
+               {% endif %}
+          </div>
       </div>
-
-
-
+    </div>
   </div>
 
    {% elif request.path == '/metrics' %}
@@ -650,14 +872,12 @@
     <div>
         <h2 class="text-2xl font-bold text-slate-800 mb-4">Сводка за сегодня</h2>
         <div class="card p-6">
-            {# --- НАЧАЛО ИСПРАВЛЕНИЯ --- #}
             {% set all_items = meals.values() | sum(start=[]) %}
 
             {% set today_total_kcal    = all_items | sum(attribute='calories') %}
             {% set today_total_protein = all_items | sum(attribute='protein') %}
             {% set today_total_fat     = all_items | sum(attribute='fat') %}
             {% set today_total_carbs   = all_items | sum(attribute='carbs') %}
-            {# --- КОНЕЦ ИСПРАВЛЕНИЯ --- #}
 
             {% set goal_kcal = latest_analysis.metabolism + 500 if latest_analysis and latest_analysis.metabolism else 2000 %}
             {% set progress_percent = (today_total_kcal / goal_kcal * 100) | round if goal_kcal > 0 else 0 %}
@@ -696,7 +916,7 @@
 
     <div>
         <h2 class="text-2xl font-bold text-slate-800 mb-4">Приёмы пищи</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {% for meal_name, key, gradient in [
               ('Завтрак', 'breakfast', 'from-amber-400 to-orange-500'),
               ('Обед',    'lunch',     'from-green-400 to-emerald-500'),
@@ -707,7 +927,6 @@
 
               <div class="flip-card" onclick="this.classList.toggle('is-flipped')">
                 <div class="flip-card-inner">
-
                   <div class="flip-card-front">
                     <div class="p-6 bg-gradient-to-br {{ gradient }} text-white">
                       <div class="flex justify-between items-center">
@@ -732,7 +951,6 @@
                       </button>
                     </div>
                   </div>
-
                   <div class="flip-card-back">
                     {% if item %}
                       <h4 class="font-bold text-lg mb-2">Вердикт AI</h4>
@@ -740,7 +958,7 @@
                       <h4 class="font-bold text-lg mb-2">Анализ</h4>
                       <p class="text-xs text-slate-600 text-center">{{ item.analysis or 'Нет анализа.' }}</p>
                     {% else %}
-                        <p>Нажмите "Добавить", чтобы загрузить фото блюда.</p>
+                        <p>Нажмите "Добавить", чтобы загрузить фото блюда или ввести данные вручную.</p>
                     {% endif %}
                   </div>
 
@@ -762,47 +980,82 @@
 {%- endmacro -%}
 {% endif %}
 
-<div id="mealModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
-  <div class="card w-full max-w-md p-6 relative animate-fade-in" onclick="event.stopPropagation()">
-    <button onclick="closeMealModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">&times;</button>
-    <h2 class="text-lg font-bold mb-4">Добавить приём: <span id="modalMealTitle"></span></h2>
-    <div class="space-y-4">
-      <input type="file" id="mealFileInput" accept="image/*" class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-      <button id="analyzeMealBtn" onclick="analyzeMeal()" class="btn btn-primary w-full">Анализировать фото</button>
+<div id="mealModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeMealModal()">
+  <div class="card w-full max-w-md p-0 relative animate-fade-in" onclick="event.stopPropagation()">
+    <button onclick="closeMealModal()" class="absolute top-3 right-4 text-slate-500 text-2xl hover:text-slate-700 z-20">&times;</button>
 
-      <div id="mealLoading" class="flex items-center justify-center space-x-2 hidden text-slate-500">
-        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-        <span>Анализируем...</span>
+    <div class="p-6">
+      <h2 class="text-xl font-bold">Приём пищи: <span id="modalMealTitle"></span></h2>
+    </div>
+
+    <div class="flex border-b border-slate-200 px-6">
+      <button id="manualTabBtn" onclick="switchMealTab('manual')" class="meal-tab active">
+        ✍️ Вручную
+      </button>
+      <button id="aiTabBtn" onclick="switchMealTab('ai')" class="meal-tab">
+        📸 Анализ по фото {% if not current_user.has_subscription %}<span class="text-amber-500">(PRO)</span>{% endif %}
+      </button>
+    </div>
+
+    <div class="p-6">
+      <div id="manualTabContent">
+        <form id="manualMealForm" method="POST" action="/meals" class="space-y-4">
+          <input type="hidden" name="meal_type" id="manualMealType">
+
+          <div>
+            <label for="manualName" class="block text-sm font-medium mb-1 text-slate-700">Название блюда</label>
+            <input type="text" id="manualName" name="name" class="form-input" placeholder="Например, Овсяная каша" required>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label for="manualCalories" class="block text-sm font-medium mb-1 text-slate-700">Калории</label>
+                <input type="number" id="manualCalories" name="calories" class="form-input" placeholder="ккал" required>
+            </div>
+            <div>
+                <label for="manualProtein" class="block text-sm font-medium mb-1 text-slate-700">Белки</label>
+                <input type="number" step="0.1" id="manualProtein" name="protein" class="form-input" placeholder="граммы" required>
+            </div>
+            <div>
+                <label for="manualFat" class="block text-sm font-medium mb-1 text-slate-700">Жиры</label>
+                <input type="number" step="0.1" id="manualFat" name="fat" class="form-input" placeholder="граммы" required>
+            </div>
+            <div>
+                <label for="manualCarbs" class="block text-sm font-medium mb-1 text-slate-700">Углеводы</label>
+                <input type="number" step="0.1" id="manualCarbs" name="carbs" class="form-input" placeholder="граммы" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-full">Сохранить</button>
+        </form>
       </div>
 
-      <div id="mealAnalysisResult" class="hidden space-y-3">
-        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
-          <div class="text-lg font-bold text-slate-800" id="resultName"></div>
-          <p class="text-sm text-slate-600 mt-2" id="resultAnalysis"></p>
-          <div class="grid grid-cols-2 gap-2 text-center mt-3 text-sm">
-            <div class="bg-green-100 text-green-800 p-2 rounded-lg">Калории: <span id="resultCalories" class="font-bold"></span> ккал</div>
-            <div class="bg-blue-100 text-blue-800 p-2 rounded-lg">Белки: <span id="resultProtein" class="font-bold"></span> г</div>
-            <div class="bg-yellow-100 text-yellow-800 p-2 rounded-lg">Жиры: <span id="resultFat" class="font-bold"></span> г</div>
-            <div class="bg-purple-100 text-purple-800 p-2 rounded-lg">Углеводы: <span id="resultCarbs" class="font-bold"></span> г</div>
+      <div id="aiTabContent" class="hidden relative">
+          <div {% if not current_user.has_subscription %}class="locked-feature"{% endif %}>
+            <div class="space-y-4">
+              <input type="file" id="mealFileInput" accept="image/*" class="form-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              <button id="analyzeMealBtn" onclick="analyzeMeal()" class="btn btn-primary w-full">Анализировать фото</button>
+
+              <div id="mealLoading" class="flex items-center justify-center space-x-2 hidden text-slate-500">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                <span>Анализируем...</span>
+              </div>
+
+              <div id="mealAnalysisResult" class="hidden space-y-3">
+                 </div>
+            </div>
           </div>
-        </div>
-<form id="confirmMealForm" method="POST" action="/meals" class="hidden">
-    <input type="hidden" name="meal_type" id="confirmMealType">
-          <input type="hidden" name="name" id="confirmName">
-          <input type="hidden" name="verdict" id="confirmVerdict">
-          <input type="hidden" name="calories" id="confirmCalories">
-          <input type="hidden" name="protein" id="confirmProtein">
-          <input type="hidden" name="fat" id="confirmFat">
-          <input type="hidden" name="carbs" id="confirmCarbs">
-          <input type="hidden" name="analysis" id="confirmAnalysis">
-          <button type="submit" class="btn bg-green-600 text-white hover:bg-green-700 w-full">Сохранить приём пищи</button>
-        </form>
+          {% if not current_user.has_subscription %}
+            <div class="locked-overlay">
+                <div class="locked-icon">📸</div>
+                <p class="locked-text">AI-анализ по фото</p>
+                <p class="text-sm text-slate-600 mb-3">доступен по подписке</p>
+                <a href="#" class="btn btn-primary btn-sm">Активировать PRO</a>
+            </div>
+          {% endif %}
       </div>
     </div>
   </div>
-</div>
-
-
 </div>
 
 <div id="dietLoader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-50 hidden">
@@ -882,117 +1135,91 @@
 </div>
 
 <style>
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-  @keyframes fadeIn {
-    from {opacity: 0; transform: scale(0.9);}
-    to {opacity: 1; transform: scale(1);}
-  }
-
-  /* Keyframes для пульсирующего фона */
-  @keyframes pulse-background {
-    0% { opacity: 0; }
-    50% { opacity: 0.2; } /* Более мягкий пульс */
-    100% { opacity: 0; }
-  }
-
-  .animate-pulse-background:hover {
-    animation: pulse-background 1.5s infinite; /* Применяем анимацию только при наведении */
-  }
+/* Стили для табов модального окна */
+.meal-tab {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+.meal-tab:hover {
+    color: var(--brand-primary);
+}
+.meal-tab.active {
+    color: var(--brand-primary);
+    border-bottom-color: var(--brand-primary);
+}
 </style>
 
 <script>
-
-
     // --- Логика для информационного баннера ---
-// --- Логика для информационного баннера ---
-const banner = document.getElementById('infoBanner');
-const restoreContainer = document.getElementById('restoreBannerContainer');
-
-// При загрузке страницы проверяем, не был ли баннер уже скрыт
-if (banner && restoreContainer) {
-    if (localStorage.getItem('infoBannerHidden') === 'true') {
-        banner.style.display = 'none';
-        restoreContainer.style.display = 'block';
-    }
-}
-
-function hideBanner() {
-    // Сохраняем выбор пользователя в локальное хранилище браузера
-    localStorage.setItem('infoBannerHidden', 'true');
-
-    // Плавно скрываем баннер
-    banner.style.transition = 'opacity 0.5s, transform 0.5s';
-    banner.style.opacity = '0';
-    banner.style.transform = 'scale(0.95)';
-
-    setTimeout(() => {
-        banner.style.display = 'none';
-        // Показываем контейнер с кнопкой восстановления
-        restoreContainer.style.display = 'block';
-    }, 500); // Ждем завершения анимации
-}
-
-function showBanner() {
-    // Удаляем запись о скрытии из хранилища
-    localStorage.removeItem('infoBannerHidden');
-
-    // Скрываем контейнер с кнопкой восстановления
-    restoreContainer.style.display = 'none';
-
-    // Показываем баннер с плавной анимацией появления
-    banner.style.display = 'block';
-    // Небольшая задержка, чтобы браузер успел применить display: block перед анимацией
-    setTimeout(() => {
-        banner.style.transition = 'opacity 0.5s, transform 0.5s';
-        banner.style.opacity = '1';
-        banner.style.transform = 'scale(1)';
-    }, 10);
-}
-    if (banner) {
-        // При загрузке страницы проверяем, не был ли баннер уже скрыт
+    const banner = document.getElementById('infoBanner');
+    const restoreContainer = document.getElementById('restoreBannerContainer');
+    if (banner && restoreContainer) {
         if (localStorage.getItem('infoBannerHidden') === 'true') {
             banner.style.display = 'none';
+            restoreContainer.style.display = 'block';
         }
     }
-
     function hideBanner() {
-        // Сохраняем выбор пользователя в локальное хранилище браузера
         localStorage.setItem('infoBannerHidden', 'true');
-        // Плавно скрываем баннер
-        banner.style.transition = 'opacity 0.5s ease';
+        banner.style.transition = 'opacity 0.5s, transform 0.5s';
         banner.style.opacity = '0';
+        banner.style.transform = 'scale(0.95)';
         setTimeout(() => {
             banner.style.display = 'none';
-        }, 500); // Ждем завершения анимации
+            restoreContainer.style.display = 'block';
+        }, 500);
+    }
+    function showBanner() {
+        localStorage.removeItem('infoBannerHidden');
+        restoreContainer.style.display = 'none';
+        banner.style.display = 'block';
+        setTimeout(() => {
+            banner.style.transition = 'opacity 0.5s, transform 0.5s';
+            banner.style.opacity = '1';
+            banner.style.transform = 'scale(1)';
+        }, 10);
     }
 
     // --- Логика для модального окна приёма пищи ---
     let currentMealKey = '';
 
+    function switchMealTab(tabName) {
+        document.getElementById('manualTabContent').classList.add('hidden');
+        document.getElementById('aiTabContent').classList.add('hidden');
+        document.getElementById('manualTabBtn').classList.remove('active');
+        document.getElementById('aiTabBtn').classList.remove('active');
+
+        if (tabName === 'manual') {
+            document.getElementById('manualTabContent').classList.remove('hidden');
+            document.getElementById('manualTabBtn').classList.add('active');
+        } else {
+            document.getElementById('aiTabContent').classList.remove('hidden');
+            document.getElementById('aiTabBtn').classList.add('active');
+        }
+    }
+
     function openMealModal(key, title) {
         currentMealKey = key;
         document.getElementById('modalMealTitle').textContent = title;
-        document.getElementById('confirmMealType').value = key;
-
-        // Сброс состояния модального окна
-        document.getElementById('mealAnalysisResult').classList.add('hidden');
-        document.getElementById('confirmMealForm').classList.add('hidden');
+        document.getElementById('manualMealType').value = key;
+        document.getElementById('mealAnalysisResult').innerHTML = '';
         document.getElementById('mealFileInput').value = '';
         document.getElementById('mealLoading').classList.add('hidden');
         document.getElementById('analyzeMealBtn').disabled = false;
-
-        // Показать модальное окно
+        document.getElementById('manualMealForm').reset();
+        switchMealTab('manual');
         const modal = document.getElementById('mealModal');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
 
     function closeMealModal() {
-        const modal = document.getElementById('mealModal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
+        document.getElementById('mealModal').classList.add('hidden');
+        document.getElementById('mealModal').classList.remove('flex');
     }
 
     function analyzeMeal() {
@@ -1004,53 +1231,59 @@ function showBanner() {
 
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
-        formData.append('meal_type', currentMealKey);
 
         document.getElementById('analyzeMealBtn').disabled = true;
         document.getElementById('mealLoading').classList.remove('hidden');
-        document.getElementById('mealAnalysisResult').classList.add('hidden');
+        document.getElementById('mealAnalysisResult').innerHTML = '';
 
-
-        fetch('/analyze_meal_photo', {
-                method: 'POST',
-                body: formData
+        fetch('/analyze_meal_photo', { method: 'POST', body: formData })
+            .then(response => {
+                if (response.status === 403) {
+                    alert('Анализ фото доступен только по подписке.');
+                    return null;
+                }
+                if (!response.ok) { throw new Error('Ошибка сети или сервера.'); }
+                return response.json();
             })
-            .then(response => response.json())
             .then(data => {
                 document.getElementById('mealLoading').classList.add('hidden');
                 document.getElementById('analyzeMealBtn').disabled = false;
-
+                if (!data) return;
                 if (data.error) {
                     alert(`Ошибка анализа: ${data.error}`);
                     return;
                 }
 
-                // Заполняем видимые поля результата
-                document.getElementById('resultName').textContent = data.name;
-                document.getElementById('resultCalories').textContent = data.calories;
-                document.getElementById('resultProtein').textContent = data.protein;
-                document.getElementById('resultFat').textContent = data.fat;
-                document.getElementById('resultCarbs').textContent = data.carbs;
-                document.getElementById('resultAnalysis').textContent = data.analysis;
-
-
-                // Заполняем скрытую форму для отправки на сервер
-                document.getElementById('confirmName').value = data.name;
-                document.getElementById('confirmVerdict').value = data.verdict;
-                document.getElementById('confirmCalories').value = data.calories;
-                document.getElementById('confirmProtein').value = data.protein;
-                document.getElementById('confirmFat').value = data.fat;
-                document.getElementById('confirmCarbs').value = data.carbs;
-                document.getElementById('confirmAnalysis').value = data.analysis;
-
-                // Показываем блок с результатами и кнопку сохранения
+                const resultHtml = `
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                      <div class="text-lg font-bold text-slate-800">${data.name}</div>
+                      <p class="text-sm text-slate-600 mt-2">${data.verdict}</p>
+                      <div class="grid grid-cols-2 gap-2 text-center mt-3 text-sm">
+                        <div class="bg-green-100 text-green-800 p-2 rounded-lg">Калории: <span class="font-bold">${data.calories}</span> ккал</div>
+                        <div class="bg-blue-100 text-blue-800 p-2 rounded-lg">Белки: <span class="font-bold">${data.protein}</span> г</div>
+                        <div class="bg-yellow-100 text-yellow-800 p-2 rounded-lg">Жиры: <span class="font-bold">${data.fat}</span> г</div>
+                        <div class="bg-purple-100 text-purple-800 p-2 rounded-lg">Углеводы: <span class="font-bold">${data.carbs}</span> г</div>
+                      </div>
+                    </div>
+                    <form id="confirmMealForm" method="POST" action="/meals">
+                      <input type="hidden" name="meal_type" value="${currentMealKey}">
+                      <input type="hidden" name="name" value="${data.name}">
+                      <input type="hidden" name="verdict" value="${data.verdict}">
+                      <input type="hidden" name="calories" value="${data.calories}">
+                      <input type="hidden" name="protein" value="${data.protein}">
+                      <input type="hidden" name="fat" value="${data.fat}">
+                      <input type="hidden" name="carbs" value="${data.carbs}">
+                      <input type="hidden" name="analysis" value="${data.analysis}">
+                      <button type="submit" class="btn bg-green-600 text-white hover:bg-green-700 w-full mt-3">Сохранить приём пищи</button>
+                    </form>
+                `;
+                document.getElementById('mealAnalysisResult').innerHTML = resultHtml;
                 document.getElementById('mealAnalysisResult').classList.remove('hidden');
-                document.getElementById('confirmMealForm').classList.remove('hidden');
             })
             .catch(error => {
                 document.getElementById('mealLoading').classList.add('hidden');
                 document.getElementById('analyzeMealBtn').disabled = false;
-                alert(`Сетевая ошибка: ${error.message}`);
+                alert(`Произошла ошибка: ${error.message}`);
             });
     }
 
@@ -1068,11 +1301,7 @@ function showBanner() {
         const loader = document.getElementById('dietLoader');
         loader.classList.remove('hidden');
 
-        const params = new URLSearchParams({
-            goal,
-            gender,
-            preferences
-        });
+        const params = new URLSearchParams({ goal, gender, preferences });
         fetch('/generate_diet?' + params)
             .then(res => res.json())
             .then(data => {
@@ -1096,12 +1325,9 @@ function showBanner() {
             .then(data => {
                 if (data.code) {
                     document.getElementById('tgCodeDisplay').textContent = data.code;
-                    const modal = document.getElementById('telegramModal');
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                } else {
-                    alert('Не удалось сгенерировать код.');
-                }
+                    document.getElementById('telegramModal').classList.add('flex');
+                    document.getElementById('telegramModal').classList.remove('hidden');
+                } else { alert('Не удалось сгенерировать код.'); }
             })
             .catch(err => alert('Ошибка при генерации кода: ' + err.message));
     }
@@ -1119,64 +1345,281 @@ function showBanner() {
     }
 
     // --- Вспомогательные функции и обработчики событий ---
-    function toggleAnalysisForm() {
-        const form = document.getElementById("uploadForm");
-        form.classList.toggle("hidden");
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
-        // Обработчик для карточек выбора (Цель, Пол)
         document.querySelectorAll('.selection-card').forEach(card => {
             card.addEventListener('click', () => {
                 const group = card.dataset.group;
-                // Убираем выделение у всех карточек в группе
                 document.querySelectorAll(`.selection-card[data-group="${group}"]`).forEach(c => c.classList.remove('selected'));
-                // Добавляем выделение к нажатой
                 card.classList.add('selected');
-                // Устанавливаем значение в скрытое поле
                 document.getElementById(`${group}Input`).value = card.dataset.value;
             });
         });
 
-        // Обработчик для переключения видимости ключевых показателей
         const metricsHeader = document.getElementById('metrics-header');
         if (metricsHeader) {
             const detailsView = document.getElementById('metrics-details-view');
             const iconsView = document.getElementById('metrics-icons-view');
             const toggleText = document.getElementById('metrics-toggle-text');
             const toggleIcon = document.getElementById('metrics-toggle-icon');
-
             metricsHeader.addEventListener('click', () => {
                 const isCollapsed = detailsView.classList.contains('hidden');
-                if (isCollapsed) {
-                    detailsView.classList.remove('hidden');
-                    iconsView.classList.add('hidden');
-                    toggleText.textContent = 'Свернуть';
-                    toggleIcon.style.transform = 'rotate(0deg)';
-                } else {
-                    detailsView.classList.add('hidden');
-                    iconsView.classList.remove('hidden');
-                    toggleText.textContent = 'Все данные';
-                    toggleIcon.style.transform = 'rotate(180deg)';
-                }
+                detailsView.classList.toggle('hidden', !isCollapsed);
+                iconsView.classList.toggle('hidden', isCollapsed);
+                toggleText.textContent = isCollapsed ? 'Свернуть' : 'Все данные';
+                toggleIcon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)';
             });
         }
     });
 
     // --- Логика для модального окна редактирования профиля ---
-const editProfileModal = document.getElementById('editProfileModal');
-
-function openEditProfileModal() {
-    if (editProfileModal) {
-        editProfileModal.classList.remove('hidden');
-        editProfileModal.classList.add('flex');
+    const editProfileModal = document.getElementById('editProfileModal');
+    function openEditProfileModal() {
+        if (editProfileModal) {
+            editProfileModal.classList.remove('hidden');
+            editProfileModal.classList.add('flex');
+        }
     }
+    function closeEditProfileModal() {
+        if (editProfileModal) {
+            editProfileModal.classList.add('hidden');
+            editProfileModal.classList.remove('flex');
+        }
+    }
+
+    function confirmAndResetDiet() {
+        if (confirm("Вы уверены, что хотите сбросить текущий рацион? Он будет удален, и вы сможете создать новый.")) {
+
+            // Показываем индикатор загрузки поверх карточки
+            const dietCard = document.getElementById('diet-card-container');
+            const loader = document.createElement('div');
+            loader.className = 'absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-xl z-20';
+            loader.innerHTML = '<svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>';
+            dietCard.appendChild(loader);
+
+            fetch('/reset_diet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Прячем блок с отображением диеты
+                    document.getElementById('diet-display-section').style.display = 'none';
+                    // Показываем блок с формой генерации
+                    document.getElementById('diet-generation-section').style.display = 'block';
+                } else {
+                    alert('Произошла ошибка: ' + data.message);
+                }
+            })
+            .catch(err => {
+                alert('Сетевая ошибка. Не удалось сбросить рацион.');
+            })
+            .finally(() => {
+                // Убираем индикатор загрузки
+                dietCard.removeChild(loader);
+            });
+        }
+    }
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // --- Логика для отрисовки графиков динамики ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Проверяем, есть ли на странице элемент для графика и есть ли подписка
+        // (в шаблоне элемент canvas не будет создан для пользователей без подписки)
+        const weightChartCanvas = document.getElementById('weightChart');
+        if (weightChartCanvas) {
+            fetch('/api/user/weekly_summary')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error(data.error);
+                        return;
+                    }
+                    renderCharts(data);
+                })
+                .catch(err => console.error("Failed to load chart data:", err));
+        }
+    });
+
+    function renderCharts(data) {
+        const { labels, datasets } = data;
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                },
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        maxTicksLimit: 5
+                    }
+                }
+            },
+            elements: {
+                point: { radius: 2 },
+                line: {
+                    borderWidth: 2,
+                    tension: 0.4 // сглаживание линии
+                }
+            }
+        };
+
+        // График веса
+        new Chart(document.getElementById('weightChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Вес',
+                    data: datasets.weight,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                }]
+            },
+            options: commonOptions
+        });
+
+        // График потребленных калорий
+        new Chart(document.getElementById('mealsChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Потреблено',
+                    data: datasets.consumed_kcal,
+                    borderColor: 'rgb(249, 115, 22)',
+                    backgroundColor: 'rgba(249, 115, 22, 0.5)',
+                }]
+            },
+            options: commonOptions
+        });
+
+        // График сожженных калорий
+        new Chart(document.getElementById('activityChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Сожжено',
+                    data: datasets.burned_kcal,
+                    borderColor: 'rgb(22, 163, 74)',
+                    backgroundColor: 'rgba(22, 163, 74, 0.5)',
+                }]
+            },
+            options: commonOptions
+        });
+    }
+
+    // --- (здесь остальной ваш JS код: confirmAndResetDiet и т.д.) ---
+</script>
+
+<div id="deficitHistoryModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeDeficitHistoryModal()">
+  <div class="card w-full max-w-2xl p-0 relative animate-fade-in" onclick="event.stopPropagation()">
+
+    <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+        <h2 class="text-xl font-bold">История накопления дефицита</h2>
+        <button onclick="closeDeficitHistoryModal()" class="text-slate-400 text-2xl hover:text-slate-600">&times;</button>
+    </div>
+
+    <div class="p-6 max-h-[70vh] overflow-y-auto">
+        <div id="deficit-loader" class="text-center py-10">
+            <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+            <p class="mt-2 text-slate-500">Загружаем историю...</p>
+        </div>
+
+        <div id="deficit-content" class="hidden">
+            </div>
+    </div>
+  </div>
+</div>
+<script>
+    // --- Логика для модального окна истории дефицита ---
+const deficitModal = document.getElementById('deficitHistoryModal');
+const deficitLoader = document.getElementById('deficit-loader');
+const deficitContent = document.getElementById('deficit-content');
+
+function showDeficitHistory() {
+    if (!deficitModal) return;
+
+    // Показываем модальное окно и загрузчик
+    deficitModal.classList.remove('hidden');
+    deficitModal.classList.add('flex');
+    deficitLoader.classList.remove('hidden');
+    deficitContent.classList.add('hidden');
+    deficitContent.innerHTML = ''; // Очищаем старые данные
+
+    fetch('/api/user/deficit_history')
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                deficitContent.innerHTML = `<p class="text-center text-red-500">${data.error}</p>`;
+            } else {
+                let tableHtml = `
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-600">
+                            <tr>
+                                <th class="p-2">Дата</th>
+                                <th class="p-2 text-right text-red-600">Потреблено</th>
+                                <th class="p-2 text-right text-green-600">Сожжено (База + Акт)</th>
+                                <th class="p-2 text-right text-blue-600">Дефицит за день</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                let totalDeficit = 0;
+                // Отображаем данные в обратном порядке (сначала новые)
+                data.reverse().forEach(day => {
+                    totalDeficit += day.deficit;
+                    tableHtml += `
+                        <tr class="border-b">
+                            <td class="p-2 font-medium">${day.date}</td>
+                            <td class="p-2 text-right">${day.consumed} ккал</td>
+                            <td class="p-2 text-right">${day.total_burned} ккал</td>
+                            <td class="p-2 text-right font-bold">${day.deficit} ккал</td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += `
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-slate-100 font-bold">
+                                <td class="p-2" colspan="3">Итого накоплено дефицита:</td>
+                                <td class="p-2 text-right text-blue-700 text-base">${Math.round(totalDeficit)} ккал</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                `;
+                deficitContent.innerHTML = tableHtml;
+            }
+
+            // Показываем контент, скрываем загрузчик
+            deficitLoader.classList.add('hidden');
+            deficitContent.classList.remove('hidden');
+        })
+        .catch(err => {
+            deficitContent.innerHTML = `<p class="text-center text-red-500">Не удалось загрузить данные. Ошибка: ${err}</p>`;
+            deficitLoader.classList.add('hidden');
+            deficitContent.classList.remove('hidden');
+        });
 }
 
-function closeEditProfileModal() {
-    if (editProfileModal) {
-        editProfileModal.classList.add('hidden');
-        editProfileModal.classList.remove('flex');
+function closeDeficitHistoryModal() {
+    if (deficitModal) {
+        deficitModal.classList.add('hidden');
+        deficitModal.classList.remove('flex');
     }
 }
 </script>

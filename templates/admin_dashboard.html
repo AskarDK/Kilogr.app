@@ -35,154 +35,171 @@
 
 
   <div class="overflow-x-auto bg-white shadow-md rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-          <th class="px-6 py-3">ID</th>
-          <th class="px-6 py-3">Имя</th>
-          <th class="px-6 py-3">Email</th>
-          <th class="px-6 py-3">Тренер</th> {# New column for trainer status #}
-          <th class="px-6 py-3 text-center">Питание (Сегодня)</th>
-          <th class="px-6 py-3 text-center">Активность (Сегодня)</th>
-          <th class="px-6 py-3 text-center">Действия</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-200">
-        {% for u in users %}
-        <tr
-          class="hover:bg-gray-100 transition-colors duration-200"
-          :class="{'bg-gray-50': expanded === {{ u.id }}}"
-        >
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.id }}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.name }}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.email }}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-            {% if u.is_trainer %}
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">Да</span>
-            {% else %}
-                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Нет</span>
-            {% endif %}
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-            <span :class="statuses[{{ u.id }}].meal ? 'text-green-600' : 'text-red-600'">
-              {{ statuses[u.id].meal and '✔' or '✘' }}
+   <table class="min-w-full divide-y divide-gray-200">
+  <thead class="bg-gray-50">
+    <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <th class="px-6 py-3">ID</th>
+      <th class="px-6 py-3">Имя</th>
+      <th class="px-6 py-3">Email</th>
+      <th class="px-6 py-3">Тренер</th>
+      <th class="px-6 py-3 text-center">Подписка</th>
+      <th class="px-6 py-3 text-center">Питание (Сегодня)</th>
+      <th class="px-6 py-3 text-center">Активность (Сегодня)</th>
+      <th class="px-6 py-3 text-center">Действия</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-gray-200">
+    {% for u in users %}
+    <tr
+      class="hover:bg-gray-100 transition-colors duration-200"
+      {# ДОБАВЛЯЕМ КЛАСС ДЛЯ ПОДСВЕТКИ СТРОКИ #}
+      :class="{
+        'bg-gray-50': expanded === {{ u.id }},
+        'bg-green-50': statuses[{{ u.id }}].subscription_active && expanded !== {{ u.id }}
+      }"
+    >
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.id }}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.name }}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ u.email }}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+        {% if u.is_trainer %}
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">Да</span>
+        {% else %}
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Нет</span>
+        {% endif %}
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+        {% if u.has_subscription %}
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+              ★ Активна
             </span>
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-            <span :class="statuses[{{ u.id }}].activity ? 'text-green-600' : 'text-red-600'">
-              {{ statuses[u.id].activity and '✔' or '✘' }}
+        {% else %}
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+              Нет
             </span>
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-            <button
-              @click.stop="expanded = (expanded === {{ u.id }} ? null : {{ u.id }})"
-              class="text-blue-600 hover:text-blue-900 mx-1"
-              x-text="expanded === {{ u.id }} ? 'Скрыть' : 'Показать сводку'"
-            ></button>
-            <a href="{{ url_for('admin_user_detail', user_id=u.id) }}" class="text-indigo-600 hover:text-indigo-900 mx-1">
-                Детали
-            </a>
-            <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Вы уверены, что хотите удалить пользователя {{ u.name }}? Это действие необратимо.');">
-                <button type="submit" class="text-red-600 hover:text-red-900 mx-1">
-                    Удалить
-                </button>
-            </form>
-          </td>
-        </tr>
+        {% endif %}
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+        <span :class="statuses[{{ u.id }}].meal ? 'text-green-600' : 'text-red-600'">
+          {{ statuses[u.id].meal and '✔' or '✘' }}
+        </span>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+        <span :class="statuses[{{ u.id }}].activity ? 'text-green-600' : 'text-red-600'">
+          {{ statuses[u.id].activity and '✔' or '✘' }}
+        </span>
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+        <button
+          @click.stop="expanded = (expanded === {{ u.id }} ? null : {{ u.id }})"
+          class="text-blue-600 hover:text-blue-900 mx-1"
+          x-text="expanded === {{ u.id }} ? 'Скрыть' : 'Показать сводку'"
+        ></button>
+        <a href="{{ url_for('admin_user_detail', user_id=u.id) }}" class="text-indigo-600 hover:text-indigo-900 mx-1">
+            Детали
+        </a>
+        <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST" class="inline-block" onsubmit="return confirm('Вы уверены, что хотите удалить пользователя {{ u.name }}? Это действие необратимо.');">
+            <button type="submit" class="text-red-600 hover:text-red-900 mx-1">
+                Удалить
+            </button>
+        </form>
+      </td>
+    </tr>
 
-        <tr x-show.transition.opacity.duration.300ms="expanded === {{ u.id }}" x-cloak>
-          <td colspan="7" class="bg-gray-50 p-6">
-            <div class="space-y-6">
+    {# Эта часть для раскрывающейся сводки остается без изменений #}
+    <tr x-show.transition.opacity.duration.300ms="expanded === {{ u.id }}" x-cloak>
+      <td colspan="8" class="bg-gray-50 p-6"> {# Изменили colspan на 8 #}
+        <div class="space-y-6">
 
-              <div>
-                <h3 class="text-xl font-semibold mb-4">🍽️ Приёмы пищи (сегодня)</h3>
-                <template x-if="detail.meals.length">
-                  <div class="flex flex-wrap gap-4">
-                    <template x-for="m in detail.meals" :key="m.type">
-                      <div
-                        class="w-full sm:w-1/2 md:w-1/4 rounded-2xl p-4 shadow-lg"
-                        :class="{
-                          'bg-gradient-to-br from-amber-300 to-amber-500': m.type==='breakfast',
-                          'bg-gradient-to-br from-green-300 to-green-500':  m.type==='lunch',
-                          'bg-gradient-to-br from-blue-300 to-blue-500':    m.type==='dinner',
-                          'bg-gradient-to-br from-purple-300 to-purple-500':m.type==='snack'
-                        }"
-                      >
-                        <h4 class="text-lg font-bold capitalize text-white" x-text="m.type"></h4>
-                        <p class="mt-2 text-white font-medium" x-text="`${m.cal} ккал`"></p>
-                        <p class="mt-1 text-white text-sm" x-text="`Б ${m.prot}г · Ж ${m.fat}г · У ${m.carbs}г`"></p>
-                      </div>
-                    </template>
+          <div>
+            <h3 class="text-xl font-semibold mb-4">🍽️ Приёмы пищи (сегодня)</h3>
+            <template x-if="detail.meals.length">
+              <div class="flex flex-wrap gap-4">
+                <template x-for="m in detail.meals" :key="m.type">
+                  <div
+                    class="w-full sm:w-1/2 md:w-1/4 rounded-2xl p-4 shadow-lg"
+                    :class="{
+                      'bg-gradient-to-br from-amber-300 to-amber-500': m.type==='breakfast',
+                      'bg-gradient-to-br from-green-300 to-green-500':  m.type==='lunch',
+                      'bg-gradient-to-br from-blue-300 to-blue-500':    m.type==='dinner',
+                      'bg-gradient-to-br from-purple-300 to-purple-500':m.type==='snack'
+                    }"
+                  >
+                    <h4 class="text-lg font-bold capitalize text-white" x-text="m.type"></h4>
+                    <p class="mt-2 text-white font-medium" x-text="`${m.cal} ккал`"></p>
+                    <p class="mt-1 text-white text-sm" x-text="`Б ${m.prot}г · Ж ${m.fat}г · У ${m.carbs}г`"></p>
                   </div>
                 </template>
-                <template x-if="!detail.meals.length">
-                  <p class="text-sm text-gray-500">Нет приёмов пищи</p>
-                </template>
               </div>
+            </template>
+            <template x-if="!detail.meals.length">
+              <p class="text-sm text-gray-500">Нет приёмов пищи</p>
+            </template>
+          </div>
 
-              <div class="bg-white p-6 rounded-xl shadow space-y-4">
-                <h3 class="text-xl font-semibold text-gray-800">🏃 Активность</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <template x-if="detail.activity">
-                    <template x-if="detail.activity.steps !== null"> {# Check if data exists within activity object #}
-                      <div class="bg-gray-50 p-4 rounded-lg text-center">
-                        <div class="text-sm text-gray-500">Шаги</div>
-                        <div class="mt-1 text-lg font-bold" x-text="detail.activity.steps"></div>
-                      </div>
-                      <div class="bg-gray-50 p-4 rounded-lg text-center">
-                        <div class="text-sm text-gray-500">Ккал (актив.)</div>
-                        <div class="mt-1 text-lg font-bold" x-text="detail.activity.active_kcal"></div>
-                      </div>
-                      <div class="bg-gray-50 p-4 rounded-lg text-center">
-                        <div class="text-sm text-gray-500">Ккал (покой)</div>
-                        <div class="mt-1 text-lg font-bold" x-text="detail.activity.resting_kcal"></div>
-                      </div>
-                      <div class="bg-gray-50 p-4 rounded-lg text-center">
-                        <div class="text-sm text-gray-500">Дистанция</div>
-                        <div class="mt-1 text-lg font-bold" x-text="detail.activity.distance_km + ' км'"></div>
-                      </div>
-                    </template>
-                  </template>
-                  <template x-if="!detail.activity || detail.activity.steps === null"> {# Check if activity object is null or has no steps data #}
-                    <div class="col-span-4 text-sm text-gray-500">Нет данных по активности</div>
-                  </template>
+          <div class="bg-white p-6 rounded-xl shadow space-y-4">
+            <h3 class="text-xl font-semibold text-gray-800">🏃 Активность</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <template x-if="detail.activity">
+                <template x-if="detail.activity.steps !== null">
+                  <div class="bg-gray-50 p-4 rounded-lg text-center">
+                    <div class="text-sm text-gray-500">Шаги</div>
+                    <div class="mt-1 text-lg font-bold" x-text="detail.activity.steps"></div>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg text-center">
+                    <div class="text-sm text-gray-500">Ккал (актив.)</div>
+                    <div class="mt-1 text-lg font-bold" x-text="detail.activity.active_kcal"></div>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg text-center">
+                    <div class="text-sm text-gray-500">Ккал (покой)</div>
+                    <div class="mt-1 text-lg font-bold" x-text="detail.activity.resting_kcal"></div>
+                  </div>
+                  <div class="bg-gray-50 p-4 rounded-lg text-center">
+                    <div class="text-sm text-gray-500">Дистанция</div>
+                    <div class="mt-1 text-lg font-bold" x-text="detail.activity.distance_km + ' км'"></div>
+                  </div>
+                </template>
+              </template>
+              <template x-if="!detail.activity || detail.activity.steps === null">
+                <div class="col-span-4 text-sm text-gray-500">Нет данных по активности</div>
+              </template>
+            </div>
+          </div>
+
+       <div class="bg-white p-6 rounded-xl shadow space-y-4">
+          <h3 class="text-xl font-semibold text-gray-800">📊 Показатели тела (последний замер)</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <template x-for="m in details[expanded].metrics" :key="m.label">
+              <div class="bg-gray-50 p-4 rounded-lg flex flex-col justify-between text-center">
+                <div class="text-sm text-gray-500 mb-1 flex items-center justify-center gap-1">
+                  <span x-text="m.icon"></span> <span x-text="m.label"></span>
                 </div>
-              </div>
-
-           <div class="bg-white p-6 rounded-xl shadow space-y-4">
-              <h3 class="text-xl font-semibold text-gray-800">📊 Показатели тела (последний замер)</h3>
-              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <template x-for="m in details[expanded].metrics" :key="m.label">
-                  <div class="bg-gray-50 p-4 rounded-lg flex flex-col justify-between text-center">
-                    <div class="text-sm text-gray-500 mb-1 flex items-center justify-center gap-1">
-                      <span x-text="m.icon"></span> <span x-text="m.label"></span>
-                    </div>
-                    <div class="text-lg font-semibold text-gray-800 mt-auto">
-                      <span x-text="m.cur!==null ? m.cur : 'n/a'"></span><span class="text-sm text-gray-500" x-text="m.unit"></span>
-                    </div>
-                    <template x-if="m.diff!==null">
-                      <div class="mt-2">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                              :class="m.is_good ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-                          <span x-text="m.arrow"></span>
-                          <span x-text="Math.abs(m.diff).toFixed(1) + m.unit"></span>
-                          <template x-if="m.pct">
-                            (<span x-text="Math.abs(m.pct).toFixed(1)"></span>%)
-                          </template>
-                        </span>
-                      </div>
-                    </template>
+                <div class="text-lg font-semibold text-gray-800 mt-auto">
+                  <span x-text="m.cur!==null ? m.cur : 'n/a'"></span><span class="text-sm text-gray-500" x-text="m.unit"></span>
+                </div>
+                <template x-if="m.diff!==null">
+                  <div class="mt-2">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                          :class="m.is_good ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+                      <span x-text="m.arrow"></span>
+                      <span x-text="Math.abs(m.diff).toFixed(1) + m.unit"></span>
+                      <template x-if="m.pct">
+                        (<span x-text="Math.abs(m.pct).toFixed(1)"></span>%)
+                      </template>
+                    </span>
                   </div>
                 </template>
               </div>
-            </div>
+            </template>
+          </div>
+        </div>
 
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
   </div>
 </div>
 {% endblock %}

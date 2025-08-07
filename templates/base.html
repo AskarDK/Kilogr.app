@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>35Health Clubs</title>
+  <title>Kilogr.app</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
   <style>[x-cloak] { display: none !important; }</style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
@@ -18,6 +20,11 @@
 
     .nav-link {
       @apply text-gray-600 font-medium hover:text-blue-600 transition duration-200;
+    }
+
+    /* Стили для ссылок в мобильном меню */
+    .mobile-nav-link {
+        @apply block text-gray-700 py-2 px-4 text-base hover:bg-gray-100 rounded-md;
     }
 
     .nav-link-active {
@@ -35,26 +42,55 @@
 </head>
 <body class="flex flex-col">
 
-  <header class="bg-white shadow-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-      <a href="/profile" class="text-2xl font-bold text-gray-800 hover:text-blue-600 transition">
-        <span class="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Kilogr.app</span>
-      </a>
-      <nav class="flex items-center space-x-6 text-sm">
-        {% if session.user_id %}
-          {% if current_user and current_user.email == 'admin@healthclub.local' %}
-            <a href="/admin" class="flex items-center gap-1.5 bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg font-semibold hover:bg-yellow-200 transition">
-              <i class="bi bi-shield-lock"></i>
-              <span>Админ панель</span>
-            </a>
-          {% endif %}
+  <header class="bg-white shadow-md sticky top-0 z-50" x-data="{ isOpen: false }">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex justify-between items-center py-4">
+        <a href="/profile" class="text-2xl font-bold text-gray-800 hover:text-blue-600 transition">
+          <span class="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Kilogr.app</span>
+        </a>
 
-          <a href="/manual_activity" class="nav-link">Добавить активность</a>
-          <a href="/logout" class="text-red-500 font-medium hover:underline">Выйти</a>
-        {% else %}
-          <a href="/login" class="nav-link">Вход</a>
-          <a href="/register" class="nav-link">Регистрация</a>
-        {% endif %}
+        <nav class="hidden md:flex items-center space-x-6 text-sm">
+          {% if session.user_id %}
+            {% if current_user and current_user.email == 'admin@healthclub.local' %}
+              <a href="/admin" class="flex items-center gap-1.5 bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-lg font-semibold hover:bg-yellow-200 transition">
+                <i class="bi bi-shield-lock"></i>
+                <span>Админ панель</span>
+              </a>
+            {% endif %}
+
+            <a href="/manual_activity" class="nav-link">Добавить активность</a>
+            <a href="/logout" class="text-red-500 font-medium hover:underline">Выйти</a>
+          {% else %}
+            <a href="/login" class="nav-link">Вход</a>
+            <a href="/register" class="nav-link">Регистрация</a>
+          {% endif %}
+        </nav>
+
+        <div class="md:hidden">
+          <button @click="isOpen = !isOpen" class="text-gray-600 hover:text-gray-800 focus:outline-none">
+            <i class="bi bi-list text-3xl" x-show="!isOpen"></i>
+            <i class="bi bi-x text-3xl" x-show="isOpen" x-cloak></i>
+          </button>
+        </div>
+      </div>
+
+      <nav x-show="isOpen" x-cloak @click.away="isOpen = false" class="md:hidden pb-4">
+        <div class="flex flex-col space-y-2">
+            {% if session.user_id %}
+              {% if current_user and current_user.email == 'admin@healthclub.local' %}
+                <a href="/admin" class="mobile-nav-link flex items-center gap-2 bg-yellow-50 text-yellow-800 font-semibold">
+                  <i class="bi bi-shield-lock"></i>
+                  <span>Админ панель</span>
+                </a>
+              {% endif %}
+
+              <a href="/manual_activity" class="mobile-nav-link">Добавить активность</a>
+              <a href="/logout" class="mobile-nav-link text-red-500">Выйти</a>
+            {% else %}
+              <a href="/login" class="mobile-nav-link">Вход</a>
+              <a href="/register" class="mobile-nav-link">Регистрация</a>
+            {% endif %}
+        </div>
       </nav>
     </div>
   </header>
