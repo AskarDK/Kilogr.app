@@ -3,22 +3,40 @@
 
 {% block content %}
 <style>
-/* ----- кастомные анимации и мелкие эффекты ----- */
-@keyframes slide-left { from { opacity:.0; transform: translateX(12px); } to { opacity:1; transform: translateX(0);} }
-@keyframes slide-right { from { opacity:.0; transform: translateX(-12px);} to { opacity:1; transform: translateX(0);} }
-@keyframes pop { from { transform: scale(.96); opacity:.0;} to { transform: scale(1); opacity:1;} }
-@keyframes fade { from { opacity:.0;} to { opacity:1;} }
-
+/* Анимации и эффекты */
+@keyframes slide-left { from { opacity:0; transform: translateX(12px); } to { opacity:1; transform: translateX(0);} }
+@keyframes slide-right{ from { opacity:0; transform: translateX(-12px);} to { opacity:1; transform: translateX(0);} }
+@keyframes pop { from { transform: scale(.96); opacity:0;} to { transform: scale(1); opacity:1;} }
+@keyframes fade { from { opacity:0;} to { opacity:1;} }
 .grid-animate-left { animation: slide-left .18s ease-out; }
 .grid-animate-right{ animation: slide-right .18s ease-out; }
 .modal-pop         { animation: pop .18s ease-out; }
 .fade-in           { animation: fade .18s ease-out; }
 
+/* Календарь */
 .calendar-cell:hover .day-badge { transform: translateY(-1px); }
 .calendar-cell:hover { box-shadow: 0 6px 22px -10px rgba(16,24,40,.25); }
-
 .pill { transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
 .pill:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgba(0,0,0,.25); }
+
+/* Горизонтальный скролл на мобилке, чтобы календарь не «терялся» */
+.calendar-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.calendar-inner  { min-width: 1000px; }
+.weekdays-sticky { position: sticky; top: 0; z-index: 5; }
+
+/* Модалки */
+.modal-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.40); z-index: 60; }
+.modal-overlay.show { display: flex; }
+.modal-card { width: min(100%, 860px); max-height: 80vh; overflow: hidden; border-radius: 20px; }
+.modal-body { max-height: 60vh; overflow: auto; }
+
+/* Мобильные правки */
+@media (max-width: 1024px) {
+  .layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .calendar-inner { min-width: 900px; }
+}
 </style>
 
 <section class="max-w-7xl mx-auto px-4 py-8">
@@ -56,7 +74,7 @@
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative">
             <i class="bi bi-search absolute left-3 top-2.5 text-white/70"></i>
-            <input id="searchInput" type="text" placeholder="Поиск по тренеру…"
+            <input id="searchInput" type="text" placeholder="Поиск: тренер или название…"
                    class="pl-9 pr-3 py-2 text-sm rounded-xl bg-white/15 placeholder-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/50">
           </div>
           <label class="inline-flex items-center gap-2 text-sm bg-white/15 border border-white/20 rounded-xl px-3 py-2">
@@ -76,23 +94,27 @@
   </div>
 
   <!-- ОСНОВА -->
-  <div class="grid lg:grid-cols-[1fr,360px] gap-8 items-start">
+  <div class="layout grid lg:grid-cols-[1fr,360px] gap-8 items-start">
     <!-- КАЛЕНДАРЬ -->
     <div class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-white/10 dark:bg-slate-900/60">
-      <!-- заголовки дней -->
-      <div class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10">
-        {% set weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
-        {% for w in weekdays %}
-          <div class="bg-gray-50 dark:bg-slate-800/60 text-center text-[12px] font-semibold py-2 uppercase tracking-wide text-gray-600 dark:text-gray-300">
-            {{ w }}
+      <div class="calendar-scroll">
+        <div class="calendar-inner">
+          <!-- заголовки дней -->
+          <div class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10 weekdays-sticky">
+            {% set weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
+            {% for w in weekdays %}
+              <div class="bg-gray-50 dark:bg-slate-800/60 text-center text-[12px] font-semibold py-2 uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                {{ w }}
+              </div>
+            {% endfor %}
           </div>
-        {% endfor %}
+          <!-- сетка -->
+          <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10 min-h-[560px]"></div>
+        </div>
       </div>
-      <!-- сетка -->
-      <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10 min-h-[560px]"></div>
     </div>
 
-    <!-- МОИ ТРЕНИРОВКИ -->
+    <!-- МОИ ТРЕНИРОВКИ (для тренера) -->
     <aside class="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-white/10 dark:bg-slate-900/60">
       <div class="p-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
         <h2 class="font-semibold">Мои тренировки</h2>
@@ -122,9 +144,9 @@
   {% endif %}
 </section>
 
-<!-- МОДАЛКА -->
+<!-- МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ -->
 <div id="modal" class="fixed inset-0 hidden items-center justify-center bg-black/40 z-50">
-  <div class="modal-pop bg-white dark:bg-slate-900/90 w/full max-w-lg rounded-2xl shadow-xl border border-gray-200 dark:border-white/10">
+  <div class="modal-pop bg-white dark:bg-slate-900/90 w-full max-w-lg rounded-2xl shadow-xl border border-gray-200 dark:border-white/10">
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-white/10">
       <h3 id="modalTitle" class="font-semibold">Новая тренировка</h3>
       <button id="modalClose" class="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-x-lg"></i></button>
@@ -150,7 +172,7 @@
       <div>
         <label class="block text-sm mb-1">Ссылка на занятие</label>
         <input id="fLink" type="url" placeholder="https://zoom.us/j/..., https://t.me/..." class="w-full border rounded-xl px-3 py-2 bg-white dark:bg-slate-900/60" />
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">В расписании видны: имя тренера, время и ссылка.</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">В расписании видны: имя тренера, время и название, остальное — в деталях.</p>
       </div>
 
       <div id="formError" class="text-sm text-red-600 hidden"></div>
@@ -159,6 +181,17 @@
       <button id="btnCancel" class="px-3 py-2 rounded-xl border hover:bg-black/5 dark:hover:bg-white/10">Отмена</button>
       <button id="btnSave" class="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60">Сохранить</button>
     </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА ДЕТАЛЕЙ ТРЕНИРОВКИ -->
+<div id="trainingModal" class="modal-overlay">
+  <div class="modal-card bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xl">
+    <div class="flex items-center justify-between p-4 border-b dark:border-white/10">
+      <div class="text-lg font-semibold">Детали тренировки</div>
+      <button id="trainingModalClose" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div id="trainingModalBody" class="modal-body p-4 space-y-3"></div>
   </div>
 </div>
 
@@ -202,13 +235,14 @@
   const searchInput = el('searchInput');
   const tzInfo = el('tzInfo');
 
-  let editingId = null;
+  const trainingModal = el('trainingModal');
+  const trainingModalClose = el('trainingModalClose');
+  const trainingModalBody = el('trainingModalBody');
 
   const ruMonths = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-  const weekEndIdx = [5,6]; // Сб, Вс
 
   const now = new Date();
-  const saved = JSON.parse(localStorage.getItem('trainings_month') || 'null');
+  const saved = JSON.parse(localStorage.getItem('trainings_month_v2') || 'null');
   const state = {
     y: saved?.y ?? now.getFullYear(),
     m: saved?.m ?? now.getMonth(),
@@ -234,9 +268,7 @@
     setTimeout(()=>{ host.removeChild(box); }, 2800);
   }
 
-  function copy(text){
-    return navigator.clipboard?.writeText(text).then(()=>true).catch(()=>false);
-  }
+  function copy(text){ return navigator.clipboard?.writeText(text).then(()=>true).catch(()=>false); }
 
   function tzString(){
     const z = -new Date().getTimezoneOffset()/60;
@@ -245,7 +277,8 @@
   }
   tzInfo.textContent = tzString();
 
-  // -------- modal --------
+  // -------- modal create/edit --------
+  let editingId = null;
   function openModal(dateStr, initial=null){
     if(!isTrainer) return;
     modal.classList.remove('hidden'); modal.classList.add('flex');
@@ -255,8 +288,8 @@
     formError.classList.add('hidden'); formError.textContent = '';
     fDate.value = dateStr || '';
     fStart.value = initial ? initial.start_time : '';
-    fEnd.value = initial ? initial.end_time : '';
-    fLink.value = initial ? (initial.meeting_link || '') : '';
+    fEnd.value   = initial ? initial.end_time   : '';
+    fLink.value  = initial ? (initial.meeting_link || '') : '';
     btnSave.disabled = false;
   }
   function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); editingId = null; }
@@ -313,16 +346,16 @@
     return `${y}${fmt2(m)}${fmt2(d)}T${fmt2(hh)}${fmt2(mm)}00`;
   }
   function downloadICS(t){
-    const uid = `training-${t.id || Math.random().toString(36).slice(2)}@dietaai`;
+    const uid = `training-${t.id || Math.random().toString(36).slice(2)}@kilogr`;
     const dtStart = toICSDate(t.date, t.start_time);
     const dtEnd = toICSDate(t.date, t.end_time);
-    const title = `Онлайн-тренировка (${t.trainer_name})`;
+    const title = `${t.title || 'Онлайн-тренировка'} (${t.trainer_name})`;
     const desc = `Ссылка: ${t.meeting_link}`;
     const host = (()=>{ try{ return new URL(t.meeting_link).hostname; }catch(_e){ return 'online'; }})();
     const ics =
 `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//DietaAI//Trainings//EN
+PRODID:-//Kilogr.app//Trainings//EN
 BEGIN:VEVENT
 UID:${uid}
 DTSTAMP:${dtStart}Z
@@ -345,15 +378,18 @@ END:VCALENDAR`;
   // -------- загрузка --------
   async function loadMonth(animateDirection){
     const r = await fetch(`/api/trainings?month=${yyyymm(state.y, state.m)}`);
-    const j = await r.json();
-    state.data = Array.isArray(j.data) ? j.data : [];
+    const j = await r.json().catch(()=>({}));
+    state.data = Array.isArray(j?.data) ? j.data : [];
     renderGrid(animateDirection);
   }
   async function loadMine(){
-    if(!isTrainer){ myList.innerHTML = '<div class="p-4 text-gray-400 text-sm">Недоступно — вы не тренер</div>'; return; }
+    if(!isTrainer){
+      myList.innerHTML = '<div class="p-4 text-gray-400 text-sm">Недоступно — вы не тренер</div>';
+      return;
+    }
     const r = await fetch('/api/trainings/mine');
-    const j = await r.json();
-    const items = Array.isArray(j.data) ? j.data : [];
+    const j = await r.json().catch(()=>({}));
+    const items = Array.isArray(j?.data) ? j.data : [];
     if(items.length === 0){
       myList.innerHTML = `
         <div class="p-8 text-center text-gray-500">
@@ -370,7 +406,7 @@ END:VCALENDAR`;
         <div class="shrink-0 mt-0.5 text-indigo-600"><i class="bi bi-broadcast-pin"></i></div>
         <div class="flex-1 min-w-0">
           <div class="text-sm font-semibold">${t.date} · ${t.start_time}–${t.end_time}</div>
-          <div class="text-sm text-gray-700 dark:text-gray-200 truncate">${t.trainer_name}</div>
+          <div class="text-sm text-gray-700 dark:text-gray-200 truncate">${t.title || 'Онлайн-тренировка'} — ${t.trainer_name}</div>
           <a href="${t.meeting_link}" target="_blank" rel="noopener" class="text-xs text-indigo-600 hover:underline truncate">${host}</a>
           <div class="mt-2 flex items-center gap-2 opacity-100">
             <button data-edit="${t.id}" class="px-2 py-1 text-xs rounded-lg border hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-pencil"></i> Изменить</button>
@@ -404,7 +440,7 @@ END:VCALENDAR`;
     });
   }
 
-  // -------- рендер календаря --------
+  // -------- рендер календаря (минимальный превью) --------
   function monthHeader(){
     monthLabel.textContent = `${ruMonths[state.m]} ${state.y}`;
     monthSelect.value = String(state.m);
@@ -415,7 +451,8 @@ END:VCALENDAR`;
     const q = (state.search || '').trim().toLowerCase();
     return state.data.filter(t => {
       if(state.filterMine && !t.mine) return false;
-      if(q && !(t.trainer_name||'').toLowerCase().includes(q)) return false;
+      const hay = `${t.trainer_name||''} ${t.title||''}`.toLowerCase();
+      if(q && !hay.includes(q)) return false;
       return true;
     });
   }
@@ -442,7 +479,7 @@ END:VCALENDAR`;
 
     for(let i=0; i<cells; i++){
       const cell = document.createElement('div');
-      cell.className = 'calendar-cell relative bg-white dark:bg-slate-900/40 min-h-[120px] p-2 transition rounded-none';
+      cell.className = 'calendar-cell relative bg-white dark:bg-slate-900/40 min-h-[140px] p-2 transition rounded-none';
 
       const dayNum = i - startWeekDay + 1;
       if(dayNum < 1 || dayNum > last.getDate()){
@@ -454,14 +491,13 @@ END:VCALENDAR`;
       const dateStr = toLocalDateStr(state.y, state.m, dayNum);
       const dateObj = new Date(state.y, state.m, dayNum);
 
-      // выходной / сегодня
       const w = (dateObj.getDay()+6)%7;
       const isWeekend = [5,6].includes(w);
       const isToday = isSameDate(dateObj, new Date());
       if(isWeekend) cell.classList.add('bg-rose-50/40','dark:bg-rose-900/10');
       if(isToday) cell.classList.add('ring-2','ring-indigo-300');
 
-      // хедер дня
+      // Хедер дня
       const header = document.createElement('div');
       header.className = 'flex items-center justify-between mb-2';
       const dn = document.createElement('div');
@@ -479,9 +515,9 @@ END:VCALENDAR`;
       }
       cell.appendChild(header);
 
-      // список событий
+      // Список событий (минимальный превью)
       const list = document.createElement('div');
-      list.className = 'space-y-1 max-h-32 overflow-auto pr-1';
+      list.className = 'space-y-1 max-h-40 overflow-auto pr-1';
       const items = byDate[dateStr] || [];
 
       if(items.length === 0){
@@ -493,80 +529,41 @@ END:VCALENDAR`;
 
       for(const t of items){
         const wrap = document.createElement('div');
-        wrap.className = 'pill group rounded-xl border flex items-start gap-2 px-2 py-1 text-xs ' +
+        wrap.className = 'pill group rounded-xl border flex flex-col gap-1 px-2 py-1 text-xs ' +
           (t.mine ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-700' : 'bg-gray-50 border-gray-200 dark:bg-slate-800/60 dark:border-white/10');
 
-        const dot = document.createElement('div');
-        dot.className = 'mt-1 w-1.5 h-1.5 rounded-full ' + (t.mine ? 'bg-indigo-500' : 'bg-gray-400');
-        wrap.appendChild(dot);
+        // строка 1: время + тренер
+        const row1 = document.createElement('div');
+        row1.className = 'flex items-center justify-between gap-2';
+        row1.innerHTML = `<span class="font-medium">${t.start_time}–${t.end_time}</span>
+                          <span class="truncate text-gray-700 dark:text-gray-200">${t.trainer_name}</span>`;
+        wrap.appendChild(row1);
 
-        const info = document.createElement('div');
-        info.className = 'flex-1 min-w-0';
-        const line1 = document.createElement('div');
-        line1.className = 'flex items-center justify-between gap-2';
-        line1.innerHTML = `<span class="font-medium">${t.start_time}–${t.end_time}</span><span class="truncate text-gray-600 dark:text-gray-300">${t.trainer_name}</span>`;
-        info.appendChild(line1);
+        // строка 2: название
+        const row2 = document.createElement('div');
+        row2.className = 'truncate text-gray-600 dark:text-gray-300';
+        row2.textContent = t.title || 'Онлайн-тренировка';
+        wrap.appendChild(row2);
 
-        const line2 = document.createElement('div');
-        line2.className = 'flex items-center gap-2 opacity-90';
-        const host = (()=>{ try{ return new URL(t.meeting_link).hostname; }catch(_e){ return 'ссылка'; }})();
-        line2.innerHTML = `<a href="${t.meeting_link}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline truncate">${host}</a>`;
-        info.appendChild(line2);
-        wrap.appendChild(info);
+        // строка 3: одна кнопка — «Подробнее» (все детали в модалке)
+        const row3 = document.createElement('div');
+        row3.className = 'flex items-center justify-end';
+        const btn = document.createElement('button');
+        btn.className = 'px-2 py-1 rounded-lg border text-indigo-700 border-indigo-300 hover:bg-indigo-50 dark:border-indigo-600/40 dark:hover:bg-indigo-900/20';
+        btn.textContent = 'Подробнее';
+        btn.addEventListener('click', ()=> openTrainingModal(t));
+        row3.appendChild(btn);
+        wrap.appendChild(row3);
 
-        const actions = document.createElement('div');
-        actions.className = 'opacity-0 group-hover:opacity-100 transition flex items-center gap-1';
-        const btnGo = document.createElement('a');
-        btnGo.href = t.meeting_link; btnGo.target = '_blank'; btnGo.rel = 'noopener';
-        btnGo.className = 'px-1.5 py-0.5 rounded border hover:bg-white dark:hover:bg-slate-700';
-        btnGo.title = 'Перейти'; btnGo.innerHTML = '<i class="bi bi-box-arrow-up-right"></i>';
-        actions.appendChild(btnGo);
-
-        const btnCopy = document.createElement('button');
-        btnCopy.className = 'px-1.5 py-0.5 rounded border hover:bg-white dark:hover:bg-slate-700';
-        btnCopy.title = 'Копировать ссылку'; btnCopy.innerHTML = '<i class="bi bi-clipboard"></i>';
-        btnCopy.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const ok = await copy(t.meeting_link);
-          notify(ok ? 'Ссылка скопирована' : 'Не удалось скопировать', ok ? 'ok' : 'err');
-        });
-        actions.appendChild(btnCopy);
-
-        const btnIcs = document.createElement('button');
-        btnIcs.className = 'px-1.5 py-0.5 rounded border hover:bg-white dark:hover:bg-slate-700';
-        btnIcs.title = 'Сохранить в календарь'; btnIcs.innerHTML = '<i class="bi bi-calendar-plus"></i>';
-        btnIcs.addEventListener('click', (e)=>{ e.stopPropagation(); downloadICS(t); });
-        actions.appendChild(btnIcs);
-
-        if(isTrainer && t.mine){
-          const btnEdit = document.createElement('button');
-          btnEdit.className = 'px-1.5 py-0.5 rounded border hover:bg-white dark:hover:bg-slate-700';
-          btnEdit.title = 'Редактировать'; btnEdit.innerHTML = '<i class="bi bi-pencil"></i>';
-          btnEdit.addEventListener('click', (e)=>{ e.stopPropagation(); openModal(t.date, t); });
-          actions.appendChild(btnEdit);
-
-          const btnDel = document.createElement('button');
-          btnDel.className = 'px-1.5 py-0.5 rounded border border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-600/40 dark:hover:bg-rose-900/20';
-          btnDel.title = 'Удалить'; btnDel.innerHTML = '<i class="bi bi-trash"></i>';
-          btnDel.addEventListener('click', async (e)=>{
-            e.stopPropagation();
-            if(!confirm('Удалить тренировку?')) return;
-            const r = await fetch(`/api/trainings/${t.id}`, { method:'DELETE' });
-            if(r.ok){ await Promise.all([loadMonth(), loadMine()]); notify('Удалено'); } else { notify('Не удалось удалить','err'); }
-          });
-          actions.appendChild(btnDel);
-        }
-
-        wrap.appendChild(actions);
         list.appendChild(wrap);
       }
 
       cell.appendChild(list);
 
-      // даблклик — быстрое создание
+      // даблклик — быстрое создание (только тренеру)
       if(isTrainer){
         cell.addEventListener('dblclick', ()=>{
-          const startH = 19; // разумный вечерний слот по умолчанию
+          const startH = 19;
           openModal(dateStr, {start_time:`${fmt2(startH)}:00`, end_time:`${fmt2(startH+1)}:00`, meeting_link:''});
           editingId = null;
         });
@@ -576,8 +573,58 @@ END:VCALENDAR`;
     }
   }
 
+  // -------- модалка деталей тренировки --------
+  function openTrainingModal(t){
+    const host = (()=>{ try{ return new URL(t.meeting_link).hostname; }catch(_e){ return ''; }})();
+    trainingModalBody.innerHTML = `
+      <div class="space-y-2">
+        <div class="text-sm text-gray-500">${t.date}</div>
+        <div class="text-base font-semibold">${t.title || 'Онлайн-тренировка'}</div>
+        <div class="text-sm">Тренер: <span class="font-medium">${t.trainer_name}</span></div>
+        <div class="text-sm">Время: <span class="font-medium">${t.start_time}–${t.end_time}</span></div>
+        <div class="pt-2 flex items-center justify-between gap-3">
+          ${t.meeting_link
+            ? `<a href="${t.meeting_link}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+                 <i class="bi bi-box-arrow-up-right"></i> Перейти
+               </a>`
+            : `<span class="text-sm text-gray-500">Ссылка появится позже</span>`
+          }
+          <div class="flex items-center gap-2">
+            <button id="btnCopyLink" class="px-2 py-1 rounded-lg border hover:bg-black/5 dark:hover:bg-white/10" ${t.meeting_link ? '' : 'disabled'}><i class="bi bi-clipboard"></i> Копировать</button>
+            <button id="btnICS" class="px-2 py-1 rounded-lg border hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-calendar-plus"></i> .ics</button>
+            ${isTrainer && t.mine
+              ? `<button id="btnEdit" class="px-2 py-1 rounded-lg border hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-pencil"></i> Редактировать</button>
+                 <button id="btnDel" class="px-2 py-1 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-600/40 dark:hover:bg-rose-900/20"><i class="bi bi-trash"></i> Удалить</button>`
+              : ''
+            }
+          </div>
+        </div>
+      </div>
+    `;
+    // привязка действий
+    trainingModalBody.querySelector('#btnICS')?.addEventListener('click', ()=> downloadICS(t));
+    trainingModalBody.querySelector('#btnCopyLink')?.addEventListener('click', async ()=>{
+      const ok = await copy(t.meeting_link||''); notify(ok ? 'Ссылка скопирована' : 'Не удалось скопировать', ok?'ok':'err');
+    });
+    if(isTrainer && t.mine){
+      trainingModalBody.querySelector('#btnEdit')?.addEventListener('click', ()=>{ showModal(trainingModal,false); openModal(t.date, t); });
+      trainingModalBody.querySelector('#btnDel')?.addEventListener('click', async ()=>{
+        if(!confirm('Удалить тренировку?')) return;
+        const r = await fetch(`/api/trainings/${t.id}`, { method:'DELETE' });
+        if(r.ok){ showModal(trainingModal,false); await Promise.all([loadMonth(), loadMine()]); notify('Удалено'); } else { notify('Не удалось удалить','err'); }
+      });
+    }
+    showModal(trainingModal, true);
+  }
+
+  // ---- helpers для модалок ----
+  function showModal(node, yes){ if(yes){ node.classList.add('show'); } else { node.classList.remove('show'); } }
+  trainingModalClose.addEventListener('click', ()=> showModal(trainingModal,false));
+  trainingModal.addEventListener('click', e=>{ if(e.target === trainingModal) showModal(trainingModal,false); });
+  document.addEventListener('keydown', e=>{ if(e.key === 'Escape') showModal(trainingModal,false); });
+
   // -------- навигация --------
-  function saveMonth(){ localStorage.setItem('trainings_month', JSON.stringify({y: state.y, m: state.m})); }
+  function saveMonth(){ localStorage.setItem('trainings_month_v2', JSON.stringify({y: state.y, m: state.m})); }
   async function goPrev(){ if(state.m===0){ state.m=11; state.y--; } else state.m--; saveMonth(); await loadMonth('right'); }
   async function goNext(){ if(state.m===11){ state.m=0; state.y++; } else state.m++; saveMonth(); await loadMonth('left'); }
   async function goToday(){ const d=new Date(); state.y=d.getFullYear(); state.m=d.getMonth(); saveMonth(); await loadMonth(); }

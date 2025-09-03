@@ -3,28 +3,57 @@
 
 {% block content %}
 <style>
-@keyframes slide-left { from { opacity:.0; transform: translateX(14px); } to { opacity:1; transform: translateX(0);} }
-@keyframes slide-right { from { opacity:.0; transform: translateX(-14px);} to { opacity:1; transform: translateX(0);} }
-@keyframes fade { from { opacity:.0;} to { opacity:1;} }
+@keyframes slide-left { from { opacity:0; transform: translateX(14px); } to { opacity:1; transform: translateX(0);} }
+@keyframes slide-right{ from { opacity:0; transform: translateX(-14px);} to { opacity:1; transform: translateX(0);} }
+@keyframes fade { from { opacity:0;} to { opacity:1;} }
 .grid-animate-left { animation: slide-left .2s ease-out; }
 .grid-animate-right{ animation: slide-right .2s ease-out; }
-.fade-in { animation: fade .18s ease-out; }
+.fade-in { animation: fade .2s ease-out; }
 
 .calendar-cell:hover .day-badge { transform: translateY(-1px); }
-.pill { transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease; }
+.pill { transition: transform .15s, box-shadow .15s, background .15s, opacity .15s; }
 .pill:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgba(0,0,0,.25); }
 .pill.disabled { opacity:.55; pointer-events:none; }
+
+/* Бейджи */
 .badge { font-size: 10px; line-height: 1; padding: 3px 6px; border-radius: 999px; }
 
-/* Крупный календарь */
+/* Крупный календарь на десктопе */
 .calendar-xl .calendar-cell { min-height: 220px; }
 .calendar-xl #calendarGrid { min-height: 900px; }
+
+/* Горизонтальный скролл на мобилках, чтобы календарь не "терялся" */
+.calendar-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.calendar-inner {
+  min-width: 1000px; /* ширина месяца для 7 колонок на узких экранах */
+}
+
+/* Липкая шапка дней в области скролла */
+.weekdays-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
 
 /* Модалки */
 .modal-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.45); z-index: 60; }
 .modal-overlay.show { display: flex; }
 .modal-card { width: min(100%, 860px); max-height: 80vh; overflow: hidden; border-radius: 20px; }
 .modal-body { max-height: 60vh; overflow: auto; }
+
+/* Мобильные правки */
+@media (max-width: 768px) {
+  .calendar-xl .calendar-cell { min-height: 130px; }
+  .calendar-xl #calendarGrid { min-height: auto; }
+}
+
+/* Очень узкие экраны */
+@media (max-width: 420px) {
+  .calendar-inner { min-width: 900px; }
+}
 </style>
 
 <section class="max-w-7xl xl:max-w-8xl mx-auto px-4 py-8">
@@ -79,29 +108,35 @@
     </div>
   </div>
 
-  <!-- Календарь на всю ширину -->
-  <div class="calendar-xl rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden dark:border-white/10 dark:bg-slate-900/60">
-    <div class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10">
-      {% set weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
-      {% for w in weekdays %}
-        <div class="bg-gray-50 dark:bg-slate-800/60 text-center text-[12px] font-semibold py-2 uppercase tracking-wide text-gray-600 dark:text-gray-300">
-          {{ w }}
+  <!-- Календарь: скролл-контейнер на узких экранах -->
+  <div class="calendar-xl rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+    <div class="calendar-scroll">
+      <div class="calendar-inner">
+        <!-- Шапка дней недели -->
+        <div class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10 weekdays-sticky">
+          {% set weekdays = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
+          {% for w in weekdays %}
+            <div class="bg-gray-50 dark:bg-slate-800/60 text-center text-[12px] font-semibold py-2 uppercase tracking-wide text-gray-600 dark:text-gray-300">
+              {{ w }}
+            </div>
+          {% endfor %}
         </div>
-      {% endfor %}
+        <!-- Сетка календаря -->
+        <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10"></div>
+      </div>
     </div>
-    <div id="calendarGrid" class="grid grid-cols-7 gap-px bg-gray-100 dark:bg-white/10"></div>
   </div>
 </section>
 
 <!-- Модалка ДЕНЬ -->
-<div id="dayModal" class="modal-overlay">
+<div id="dayModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dayModalDate">
   <div class="modal-card bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xl">
     <div class="flex items-center justify-between p-4 border-b dark:border-white/10">
       <div>
         <div id="dayModalDate" class="text-lg font-semibold"></div>
         <div id="dayModalCount" class="text-xs text-gray-500"></div>
       </div>
-      <button id="dayModalClose" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-x-lg"></i></button>
+      <button id="dayModalClose" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10" aria-label="Закрыть"><i class="bi bi-x-lg"></i></button>
     </div>
     <div id="dayModalBody" class="modal-body p-4 space-y-3">
       <!-- наполняется JS -->
@@ -110,11 +145,11 @@
 </div>
 
 <!-- Модалка МОИ ЗАПИСИ -->
-<div id="myModal" class="modal-overlay">
+<div id="myModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="myModalTitle">
   <div class="modal-card bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xl">
     <div class="flex items-center justify-between p-4 border-b dark:border-white/10">
-      <div class="text-lg font-semibold">Мои записи</div>
-      <button id="myModalClose" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"><i class="bi bi-x-lg"></i></button>
+      <div id="myModalTitle" class="text-lg font-semibold">Мои записи</div>
+      <button id="myModalClose" class="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10" aria-label="Закрыть"><i class="bi bi-x-lg"></i></button>
     </div>
     <div id="myModalBody" class="modal-body p-4">
       <div class="text-gray-500">Загрузка…</div>
@@ -268,7 +303,7 @@
 
       cell.appendChild(header);
 
-      // List
+      // List (только минимальный превью)
       const list = document.createElement('div');
       list.className = 'space-y-1 max-h-60 overflow-auto pr-1';
       const items = byDate[dateStr] || [];
@@ -286,11 +321,11 @@
         rendered++;
 
         const past = !!t.is_past;
-        const full = (t.spots_left || 0) === 0 && !t.joined;
 
         const wrap = document.createElement('div');
         wrap.className = 'pill group rounded-xl border flex flex-col gap-1 px-2 py-1 text-xs ' +
-          (t.joined ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/15 dark:border-emerald-700' : 'bg-gray-50 border-gray-200 dark:bg-slate-800/60 dark:border-white/10');
+          (t.joined ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/15 dark:border-emerald-700'
+                    : 'bg-gray-50 border-gray-200 dark:bg-slate-800/60 dark:border-white/10');
         if(past) wrap.classList.add('disabled');
 
         // строка 1: время + тренер
@@ -306,49 +341,18 @@
         rowTitle.textContent = t.title || 'Онлайн-тренировка';
         wrap.appendChild(rowTitle);
 
-        // строка 3: ID + действия
-        const row2 = document.createElement('div');
-        row2.className = 'flex items-center justify-between gap-2';
-        const left = document.createElement('div');
-        left.className = 'flex items-center gap-2 flex-wrap';
+        // строка 3: одна кнопка действия
+        const rowActions = document.createElement('div');
+        rowActions.className = 'flex items-center justify-end';
 
-        const idBadge = document.createElement('button');
-        idBadge.type = 'button';
-        idBadge.title = 'Скопировать ID';
-        idBadge.className = 'badge bg-white border border-gray-200 text-gray-700 dark:bg-slate-800/60 dark:border-white/10 dark:text-gray-200';
-        idBadge.textContent = `ID: ${t.id}`;
-        idBadge.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(String(t.id)); notify('ID скопирован'); }catch(_e){} });
-        left.appendChild(idBadge);
-
-        const spots = document.createElement('span');
-        spots.className = 'badge bg-white border border-gray-200 text-gray-700 dark:bg-slate-800/60 dark:border-white/10 dark:text-gray-200';
-        spots.textContent = (t.spots_left || 0) > 0 ? `мест: ${t.spots_left}` : 'нет мест';
-        left.appendChild(spots);
-
-        if(t.can_open_link && t.meeting_link){
-          const a = document.createElement('a');
-          a.href = t.meeting_link; a.target = '_blank'; a.rel = 'noopener';
-          a.className = 'badge bg-emerald-600 text-white hover:opacity-90';
-          a.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> перейти';
-          left.appendChild(a);
-        }else{
-          const when = (t.link_visible_at || '').slice(11,16);
-          const lock = document.createElement('span');
-          lock.className = 'badge bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-gray-200';
-          lock.innerHTML = `<i class="bi bi-lock"></i> ${when ? 'откроется в ' + when : 'скоро'}`;
-          left.appendChild(lock);
-        }
-
-        row2.appendChild(left);
-
-        const right = document.createElement('div');
         const btn = document.createElement('button');
         btn.className = 'px-2 py-1 rounded-lg border transition ' +
-          (t.joined ? 'border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-600/40 dark:hover:bg-rose-900/20' :
-                      'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600/40 dark:hover:bg-emerald-900/20');
+          (t.joined ? 'border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-600/40 dark:hover:bg-rose-900/20'
+                    : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600/40 dark:hover:bg-emerald-900/20');
 
         if(past){
-          btn.disabled = true; btn.textContent = 'прошло';
+          btn.disabled = true;
+          btn.textContent = 'прошло';
         } else if(t.joined){
           btn.textContent = 'Отменить';
           btn.addEventListener('click', async ()=>{
@@ -358,9 +362,11 @@
             if(ok){ notify('Запись отменена'); await loadAll(); } else { notify(j?.message||'Ошибка отмены', false); }
           });
         } else {
-          btn.textContent = (t.spots_left||0) === 0 ? 'Нет мест' : 'Записаться';
-          if((t.spots_left||0) === 0){ btn.disabled = true; }
-          else {
+          if((t.spots_left||0) === 0){
+            btn.disabled = true;
+            btn.textContent = 'Нет мест';
+          } else {
+            btn.textContent = 'Записаться';
             btn.addEventListener('click', async ()=>{
               const r = await fetch(`/api/trainings/${t.id}/signup`, { method:'POST' });
               const ok = r.ok; const j = await r.json().catch(()=>({}));
@@ -368,10 +374,10 @@
             });
           }
         }
-        right.appendChild(btn);
-        row2.appendChild(right);
 
-        wrap.appendChild(row2);
+        rowActions.appendChild(btn);
+        wrap.appendChild(rowActions);
+
         list.appendChild(wrap);
       }
 
@@ -403,8 +409,6 @@
     } else {
       for(const t of list){
         const past = !!t.is_past;
-        const full = (t.spots_left || 0) === 0 && !t.joined;
-
         const host = (()=>{ try{ return new URL(t.meeting_link).hostname; }catch(_e){ return ''; }})();
 
         const item = document.createElement('div');
@@ -539,8 +543,8 @@
   // ---- Loaders ----
   async function loadMonth(animate){
     const r = await fetch(`/api/trainings?month=${yyyymm(state.y, state.m)}`);
-    const j = await r.json();
-    state.data = Array.isArray(j.data) ? j.data : [];
+    const j = await r.json().catch(()=>({}));
+    state.data = Array.isArray(j?.data) ? j.data : [];
     renderGrid(animate);
   }
   async function loadAll(){ await loadMonth(); }
