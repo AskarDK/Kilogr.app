@@ -1,5 +1,6 @@
 import os
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as time_cls
+from urllib.parse import urlparse
 import base64
 import json
 from flask import jsonify # Убедись, что jsonify импортирован вверху файла
@@ -387,6 +388,173 @@ class Diet(db.Model):
     carbs = db.Column(db.Float)
     user = db.relationship('User', backref=db.backref('diets', lazy=True))
 
+class Training(db.Model):
+    __tablename__ = 'trainings'
+    id = db.Column(db.Integer, primary_key=True)
+    trainer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    meeting_link = db.Column(db.String(255), nullable=False)
+
+    title = db.Column(db.String(120), nullable=False, default="Онлайн-тренировка")
+    description = db.Column(db.Text, default="")
+    date = db.Column(db.Date, nullable=False, index=True)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    location = db.Column(db.String(120))
+    capacity = db.Column(db.Integer, default=10)
+    is_public = db.Column(db.Boolean, default=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    trainer = db.relationship('User', backref=db.backref('trainings', lazy=True))
+    signups = db.relationship('TrainingSignup', backref='training', cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.UniqueConstraint('trainer_id', 'date', 'start_time', name='uq_trainer_date_start'),
+    )
+
+    def to_dict(self, me_id=None):
+        mine = (me_id is not None and self.trainer_id == me_id)
+        now = datetime.now()
+        start_dt = datetime.combine(self.date, self.start_time)
+        end_dt = datetime.combine(self.date, self.end_time)
+        is_past = now >= end_dt
+        link_visible_at = (start_dt - timedelta(minutes=10))
+
+        joined = False
+        if me_id:
+            joined = any(s.user_id == me_id for s in self.signups)
+
+        seats_taken = len(self.signups)
+        spots_left = max(0, (self.capacity or 0) - seats_taken)
+
+        can_open_link = False
+        if mine:
+            can_open_link = True
+        elif joined and (now >= link_visible_at) and not is_past:
+            can_open_link = True
+
+        payload = {
+            "id": self.id,
+            "trainer_id": self.trainer_id,
+            "trainer_name": (self.trainer.name if self.trainer and getattr(self.trainer, "name", None) else "Тренер"),
+            "title": self.title or "Онлайн-тренировка",  # ← добавлено
+            "date": self.date.strftime("%Y-%m-%d"),
+            "start_time": self.start_time.strftime("%H:%M"),
+            "end_time": self.end_time.strftime("%H:%M"),
+            "mine": mine,
+            "joined": joined,
+            "is_past": is_past,
+            "spots_left": spots_left,
+            "link_visible_at": link_visible_at.isoformat(timespec="minutes"),
+            "can_open_link": can_open_link
+        }
+        if can_open_link:
+            payload["meeting_link"] = self.meeting_link
+        return payload
+
+
+class TrainingSignup(db.Model):
+    __tablename__ = 'training_signups'
+    id = db.Column(db.Integer, primary_key=True)
+    training_id = db.Column(db.Integer, db.ForeignKey('trainings.id', ondelete="CASCADE"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False, index=True)
+    notified_1h = db.Column(db.Boolean, default=False)  # телеграм-уведомление за 1ч отправлено
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('training_id', 'user_id', name='uq_training_user'),
+    )
+
+import os, threading, time as time_mod, requests
+
+def _dt(date_obj, time_obj):
+    return datetime.combine(date_obj, time_obj)
+
+def _send_telegram(chat_id: str, text: str):
+    token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                          json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True})
+        return r.ok
+    except Exception:
+        return False
+
+@app.route('/api/activity/today/<int:chat_id>')
+def activity_today(chat_id):
+    user = User.query.filter_by(telegram_chat_id=str(chat_id)).first()
+    if not user:
+        return jsonify({"error": "not found"}), 404
+    a = Activity.query.filter_by(user_id=user.id, date=date.today()).first()
+    if not a:
+        return jsonify({"present": False})
+    return jsonify({"present": True, "steps": a.steps or 0, "active_kcal": a.active_kcal or 0})
+
+_notifier_started = False
+def _notification_worker():
+    # ВАЖНО: весь цикл работает внутри контекста приложения
+    with app.app_context():
+        while True:
+            try:
+                now = datetime.now()
+                target = now + timedelta(hours=1)
+
+                trainings = Training.query.filter(
+                    Training.date == target.date(),
+                    db.extract('hour', Training.start_time) == target.hour,
+                    db.extract('minute', Training.start_time) == target.minute
+                ).all()
+
+                for t in trainings:
+                    rows = TrainingSignup.query.filter_by(training_id=t.id, notified_1h=False).all()
+                    for s in rows:
+                        # используем session.get — он уже есть в app context
+                        u = db.session.get(User, s.user_id)
+                        if not u or not getattr(u, "telegram_chat_id", None):
+                            s.notified_1h = True
+                            continue
+
+                        when = t.start_time.strftime("%H:%M")
+                        date_s = t.date.strftime("%d.%m.%Y")
+
+                        # Дружелюбный текст с эмодзи
+                        text = (
+                            f"⏰ Напоминание!\n"
+                            f"Через 1 час — онлайн-тренировка «{t.title or 'Онлайн-тренировка'}» с "
+                            f"{(t.trainer.name if t.trainer and getattr(t.trainer, 'name', None) else 'тренером')}\n"
+                            f"📅 {date_s}  •  🕒 {when}\n"
+                            f"🔗 Ссылка появится за 10 минут до начала в вашем расписании.\n"
+                            f"🆔 ID занятия: {t.id}"
+                        )
+
+                        if _send_telegram(u.telegram_chat_id, text):
+                            s.notified_1h = True
+
+                db.session.commit()
+            except Exception as e:
+                # при любой ошибке корректно откатываем сессию
+                db.session.rollback()
+            finally:
+                # на всякий случай очищаем scoped-сессию и ждём минуту
+                db.session.remove()
+                time_mod.sleep(60)
+
+
+def start_training_notifier():
+    global _notifier_started
+    if _notifier_started:
+        return
+    _notifier_started = True
+    if os.getenv("ENABLE_TRAINING_NOTIFIER", "1") == "1":
+        th = threading.Thread(target=_notification_worker, daemon=True)
+        th.start()
+
+# Запустим уведомитель после инициализации БД
+start_training_notifier()
+
+
 
 class BodyAnalysis(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -420,7 +588,198 @@ def calculate_age(born):
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
+# ------------------ TRAININGS API ------------------
+
+def _parse_date_yyyy_mm_dd(s: str) -> date:
+    try:
+        y, m, d = map(int, s.split('-'))
+        return date(y, m, d)
+    except Exception:
+        abort(400, description="Некорректная дата (ожидается YYYY-MM-DD)")
+
+def _parse_hh_mm(s: str):
+    try:
+        hh, mm = map(int, s.split(':'))
+        return time_cls(hh, mm)
+    except Exception:
+        abort(400, description="Некорректное время (ожидается HH:MM)")
+
+def _validate_meeting_link(url: str):
+    url = (url or "").strip()
+    try:
+        u = urlparse(url)
+        if u.scheme in ("http", "https") and u.netloc:
+            return url
+    except Exception:
+        pass
+    abort(400, description="Некорректная ссылка на занятие (ожидается http/https)")
+
+def _month_bounds(yyyy_mm: str):
+    try:
+        y, m = map(int, yyyy_mm.split('-'))
+        start = date(y, m, 1)
+    except Exception:
+        abort(400, description="Некорректный параметр month (ожидается YYYY-MM)")
+    if m == 12:
+        next_month = date(y+1, 1, 1)
+    else:
+        next_month = date(y, m+1, 1)
+    end = next_month - timedelta(days=1)
+    return start, end
+
+@app.route('/trainings')
+def trainings_page():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    u = get_current_user()
+    return render_template('trainings.html', is_trainer=bool(u and u.is_trainer), me_id=(u.id if u else None))
+
+@app.route('/api/trainings', methods=['GET'])
+def list_trainings():
+    if not session.get('user_id'):
+        abort(401)
+    month = request.args.get('month')
+    if not month:
+        today = date.today()
+        month = f"{today.year:04d}-{today.month:02d}"
+    start, end = _month_bounds(month)
+    me = get_current_user()
+    me_id = me.id if me else None
+
+    items = Training.query.filter(Training.date >= start, Training.date <= end)\
+                          .order_by(Training.date, Training.start_time).all()
+    return jsonify({"ok": True, "data": [t.to_dict(me_id) for t in items]})
+
+@app.route('/api/trainings/mine', methods=['GET'])
+def my_trainings():
+    u = get_current_user()
+    if not u:
+        abort(401)
+    if not u.is_trainer:
+        abort(403)
+    items = Training.query.filter_by(trainer_id=u.id)\
+                          .order_by(Training.date.desc(), Training.start_time).all()
+    return jsonify({"ok": True, "data": [t.to_dict(u.id) for t in items]})
+
+@app.route('/api/trainings', methods=['POST'])
+def create_training():
+    u = get_current_user()
+    if not u:
+        abort(401)
+    if not u.is_trainer:
+        abort(403, description="Доступ только для тренеров")
+
+    data = request.get_json(force=True, silent=True) or {}
+
+    dt = _parse_date_yyyy_mm_dd(data.get('date') or '')
+    st = _parse_hh_mm(data.get('start_time') or '')
+    et = _parse_hh_mm(data.get('end_time') or '')
+    if et <= st:
+        abort(400, description="Время окончания должно быть позже начала")
+
+    meeting_link = _validate_meeting_link(data.get('meeting_link') or '')
+
+    # Глобальная защита: в этот слот уже есть ЛЮБАЯ тренировка
+    exists = Training.query.filter(Training.date == dt, Training.start_time == st).first()
+    if exists:
+        abort(409, description="На это время уже есть тренировка")
+
+    t = Training(
+        trainer_id=u.id,
+        meeting_link=meeting_link,
+        # опциональные поля (для совместимости)
+        title=(data.get('title') or 'Онлайн-тренировка').strip() or "Онлайн-тренировка",
+        description=data.get('description') or '',
+        date=dt,
+        start_time=st,
+        end_time=et,
+        location=(data.get('location') or '').strip(),
+        capacity=int(data.get('capacity') or 10),
+        is_public=bool(data.get('is_public')) if data.get('is_public') is not None else True
+    )
+    db.session.add(t)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # страхуемся на случай гонок по trainer_id uniq
+        abort(409, description="На это время уже есть тренировка")
+
+    return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+@app.route('/api/trainings/<int:tid>', methods=['PUT'])
+def update_training(tid):
+    u = get_current_user()
+    if not u:
+        abort(401)
+    t = Training.query.get_or_404(tid)
+    if t.trainer_id != u.id:
+        abort(403)
+
+    data = request.get_json(force=True, silent=True) or {}
+
+    if 'meeting_link' in data:
+        t.meeting_link = _validate_meeting_link(data.get('meeting_link') or '')
+
+    if 'date' in data:
+        t.date = _parse_date_yyyy_mm_dd(data.get('date') or '')
+    if 'start_time' in data:
+        t.start_time = _parse_hh_mm(data.get('start_time') or '')
+    if 'end_time' in data:
+        t.end_time = _parse_hh_mm(data.get('end_time') or '')
+    if t.end_time <= t.start_time:
+        abort(400, description="Время окончания должно быть позже начала")
+
+    # опциональные поля — оставляем совместимость
+    if 'title' in data:
+        title = (data.get('title') or '').strip()
+        t.title = title or "Онлайн-тренировка"
+    if 'description' in data:
+        t.description = data.get('description') or ''
+    if 'location' in data:
+        t.location = (data.get('location') or '').strip()
+    if 'capacity' in data:
+        try:
+            t.capacity = int(data.get('capacity') or 10)
+        except Exception:
+            abort(400, description="Некорректная вместимость")
+    if 'is_public' in data:
+        t.is_public = bool(data.get('is_public'))
+
+    # Глобальная защита: проверяем конфликт по дата+старт (кроме самой записи)
+    conflict = Training.query.filter(
+        Training.id != t.id,
+        Training.date == t.date,
+        Training.start_time == t.start_time
+    ).first()
+    if conflict:
+        abort(409, description="На это время уже есть тренировка")
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        abort(409, description="На это время уже есть тренировка")
+
+    return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+@app.route('/api/trainings/<int:tid>', methods=['DELETE'])
+def delete_training(tid):
+    u = get_current_user()
+    if not u:
+        abort(401)
+    t = Training.query.get_or_404(tid)
+    if t.trainer_id != u.id:
+        abort(403)
+    db.session.delete(t)
+    db.session.commit()
+    return jsonify({"ok": True})
+
 # ------------------ UTILS ------------------
+@app.context_processor
+def inject_flags():
+    u = get_current_user()
+    return dict(is_trainer_user=bool(u and u.is_trainer))
 
 @app.context_processor
 def utility_processor():
@@ -1213,6 +1572,41 @@ def diet_history():
         chart_values=json.dumps(chart_values)
     )
 
+# === TELEGRAM: лог активности по chat_id ===
+@app.route('/api/activity/log', methods=['POST'])
+def api_activity_log():
+    data = request.get_json(force=True, silent=True) or {}
+    chat_id = str(data.get('chat_id') or '').strip()
+    if not chat_id:
+        return jsonify({"error": "chat_id required"}), 400
+
+    user = User.query.filter_by(telegram_chat_id=chat_id).first()
+    if not user:
+        return jsonify({"error": "user not found"}), 404
+
+    try:
+        steps = int(data.get('steps') or 0)
+        active_kcal = int(data.get('active_kcal') or 0)
+    except Exception:
+        return jsonify({"error": "invalid numbers"}), 400
+
+    # перезаписываем активность за сегодня
+    today = date.today()
+    existing = Activity.query.filter_by(user_id=user.id, date=today).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+
+    act = Activity(
+        user_id=user.id,
+        date=today,
+        steps=steps,
+        active_kcal=active_kcal,
+        source='telegram'
+    )
+    db.session.add(act)
+    db.session.commit()
+    return jsonify({"ok": True, "message": "activity saved"})
 
 @app.route('/add_meal', methods=['POST'])
 @login_required
@@ -2922,6 +3316,66 @@ def get_payment_status(order_id):
         # Пока 10 секунд не прошло, возвращаем "в ожидании"
         return jsonify({"status": "pending"})
 
+from sqlalchemy.exc import IntegrityError
+
+@app.route('/api/trainings/<int:tid>/signup', methods=['POST'])
+def signup_training(tid):
+    u = get_current_user()
+    if not u:
+        abort(401)
+
+    t = Training.query.get_or_404(tid)
+
+    # Нельзя записываться на прошедшие
+    now = datetime.now()
+    if datetime.combine(t.date, t.end_time) <= now:
+        abort(400, description="Тренировка уже прошла")
+
+    # Проверка на лимит мест
+    seats_taken = len(t.signups)
+    capacity = t.capacity or 0
+    already = TrainingSignup.query.filter_by(training_id=t.id, user_id=u.id).first()
+    if not already and seats_taken >= capacity:
+        abort(409, description="Нет свободных мест")
+
+    if already:
+        # Идемпотентность — просто вернём текущий статус
+        return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+    s = TrainingSignup(training_id=t.id, user_id=u.id)
+    db.session.add(s)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        # На случай гонки — считаем, что уже записан
+        return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+    return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+
+@app.route('/api/trainings/<int:tid>/signup', methods=['DELETE'])
+def cancel_signup(tid):
+    u = get_current_user()
+    if not u:
+        abort(401)
+
+    t = Training.query.get_or_404(tid)
+    s = TrainingSignup.query.filter_by(training_id=t.id, user_id=u.id).first()
+    if not s:
+        abort(404, description="Запись не найдена")
+
+    db.session.delete(s)
+    db.session.commit()
+
+    return jsonify({"ok": True, "data": t.to_dict(u.id)})
+
+@app.route('/trainings-calendar')
+def trainings_calendar_page():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    u = get_current_user()
+    return render_template('trainings-calendar.html', me_id=(u.id if u else None))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

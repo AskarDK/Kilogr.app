@@ -19,6 +19,8 @@ from telegram.ext import (
 # Убрали импорт OpenAI, так как анализ теперь на бэкенде
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from zoneinfo import ZoneInfo
+from datetime import datetime
 
 # --- КОНФИГУРАЦИЯ ---
 load_dotenv()
@@ -38,17 +40,19 @@ app_token = os.getenv("TELEGRAM_BOT_TOKEN")
 os.makedirs("temp_photos", exist_ok=True)
 
 # --- ИЗМЕНЕНО: Упростили состояния ---
-(ASK_CODE, SELECT_MENU, ASK_PHOTO, HANDLE_SAVE, OVERWRITE_CONFIRM, HISTORY_MENU) = range(6)
+(ASK_CODE, SELECT_MENU, ASK_PHOTO, HANDLE_SAVE, OVERWRITE_CONFIRM, HISTORY_MENU, ACTIVITY_INPUT) = range(7)
 
 
 # --- Клавиатура главного меню ---
 MAIN_MENU_KEYBOARD = [
     [InlineKeyboardButton("➕ Добавить приём пищи", callback_data="add")],
-    [InlineKeyboardButton("🍽️ Приемы пищи за сегодня", callback_data="today_meals")], # <-- НОВАЯ КНОПКА
+    [InlineKeyboardButton("🍽️ Приемы пищи за сегодня", callback_data="today_meals")],
     [InlineKeyboardButton("🚀 Мой прогресс", callback_data="progress")],
     [InlineKeyboardButton("📜 Моя история", callback_data="history")],
     [InlineKeyboardButton("🥗 Текущая диета", callback_data="current")],
+    [InlineKeyboardButton("➕ Добавить активность", callback_data="add_activity")],  # ← ДОБАВЛЕНО
 ]
+
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменений) ---
 
@@ -98,10 +102,11 @@ async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Добавьте эту новую функцию в telegram_bot.py
 
-async def show_today_meals(query: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_today_meals(update_or_query: Update, context: ContextTypes.DEFAULT_TYPE):
     """Запрашивает у бэкенда и отображает все приемы пищи за сегодня."""
-    chat_id = query.message.chat.id
-    loading_msg = await query.message.reply_text("⏳ Загружаю приемы пищи за сегодня...")
+    chat = update_or_query.effective_chat
+    chat_id = chat.id
+    loading_msg = await chat.send_message("⏳ Загружаю приемы пищи за сегодня...")
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -133,7 +138,8 @@ async def show_today_meals(query: Update, context: ContextTypes.DEFAULT_TYPE):
                         text,
                         parse_mode="Markdown",
                         reply_markup=InlineKeyboardMarkup(
-                            [[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
+                            [[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]]
+                        )
                     )
                 else:
                     await loading_msg.edit_text("⚠️ Произошла ошибка при загрузке данных.")
@@ -189,11 +195,10 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     data = query.data
-    chat_id = update.effective_chat.id
+    chat = update.effective_chat
+    chat_id = chat.id
 
-    try:
-        await query.message.delete()
-    except Exception: pass
+    # Ничего не удаляем перед отправкой нового сообщения
     context.user_data['main_menu_message_id'] = None
 
     if data == "add":
@@ -204,24 +209,29 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🥜 Перекус", callback_data="meal_snack")],
             [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]
         ]
-        sent_message = await query.message.reply_text("Выберите тип приёма пищи:",
-                                                      reply_markup=InlineKeyboardMarkup(keyboard))
+        sent_message = await chat.send_message(
+            "Выберите тип приёма пищи:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         context.user_data['messages_to_delete'] = [sent_message.message_id]
         return ASK_PHOTO
 
-    if data == "today_meals":  # <-- ДОБАВЬТЕ ЭТОТ БЛОК
-        await show_today_meals(query, context)
+    if data == "today_meals":
+        await show_today_meals(update, context)  # ← передаём update
         return SELECT_MENU
 
+    if data == "add_activity":
+        return await show_activity_prompt(update, context)
+
     if data == "progress":
-        await show_progress(query, context)
+        await show_progress(update, context)      # ← передаём update
         return SELECT_MENU
 
     if data == "history":
         return await show_history_menu(update, context)
 
     if data == "current":
-        loading_msg = await query.message.reply_text("⏳ Загружаю вашу диету...")
+        loading_msg = await chat.send_message("⏳ Загружаю вашу диету...")  # ← в чат
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{BACKEND_URL}/api/current_diet/{chat_id}") as resp:
@@ -251,9 +261,9 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await show_main_menu(update, context)
         return SELECT_MENU
 
-    # На случай непредвиденных callback_data
     await show_main_menu(update, context)
     return SELECT_MENU
+
 
 async def ask_photo_for_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -437,11 +447,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # --- ФУНКЦИИ ПРОГРЕССА И ИСТОРИИ ---
-
-async def show_progress(query: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Принимает query, чтобы можно было редактировать/удалять сообщения
-    chat_id = query.message.chat.id
-    loading_msg = await query.message.reply_text("⏳ Загружаю ваш прогресс...")
+async def show_progress(update_or_query: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update_or_query.effective_chat
+    chat_id = chat.id
+    loading_msg = await chat.send_message("⏳ Загружаю ваш прогресс...")
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -451,7 +460,6 @@ async def show_progress(query: Update, context: ContextTypes.DEFAULT_TYPE):
                     error_msg = data.get("error", "Недостаточно данных для анализа прогресса.")
                     await loading_msg.edit_text(f"⚠️ {error_msg}")
                     return
-
                 data = await resp.json()
         except aiohttp.ClientError as e:
             logging.error(f"Progress loading failed: {e}")
@@ -463,9 +471,10 @@ async def show_progress(query: Update, context: ContextTypes.DEFAULT_TYPE):
     previous = data.get("previous")
 
     if not latest:
-        await query.message.reply_text("⚠️ Данные не найдены.", reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]]
-        ))
+        await chat.send_message(
+            "⚠️ Данные не найдены.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
+        )
         return
 
     text = f"🚀 *Ваш прогресс (замер от {latest['date']})*\n\n"
@@ -486,12 +495,10 @@ async def show_progress(query: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"🧈 Жир: {get_diff_str(latest.get('fat_mass'), previous.get('fat_mass'))}\n"
         text += f"💪 Мышцы: {get_diff_str(latest.get('muscle_mass'), previous.get('muscle_mass'))}"
 
-    await query.message.reply_text(
+    await chat.send_message(
         text,
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]]
-        )
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
     )
 
 async def show_history_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -570,10 +577,146 @@ async def handle_history_pagination(update: Update, context: ContextTypes.DEFAUL
 
 # --- (Остальные функции: scheduler, webhook, check_meals, error_handler) ---
 async def remind_missing_meals(app: Application):
-    """Отправляет напоминание всем зарегистрированным пользователям, кто еще не логировал еду."""
-    logging.info("Running scheduled job: remind_missing_meals")
-    # Код для получения списка чатов и отправки напоминаний...
-    # ...
+    """В 21:00 (Asia/Almaty): если за сегодня нет активности/еды — шлём напоминание c кнопками."""
+    logging.info("Running scheduled job: evening reminders")
+
+    # сегодняшняя дата в Алматинской таймзоне (для сравнения с API истории)
+    today_local_str = datetime.now(ZoneInfo(TIMEZONE)).strftime("%d.%m.%Y")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # список всех зарегистрированных чатов
+            async with session.get(f"{BACKEND_URL}/api/registered_chats") as resp:
+                if resp.status != 200:
+                    logging.warning("registered_chats failed")
+                    return
+                reg = await resp.json()
+                chat_ids = reg.get("chat_ids", [])
+
+            for chat_id in chat_ids:
+                # --- Проверка еды за сегодня ---
+                meals_missing = True
+                try:
+                    async with session.get(f"{BACKEND_URL}/api/meals/today/{chat_id}") as r_meal:
+                        if r_meal.status == 200:
+                            d = await r_meal.json()
+                            total = d.get("total_calories", 0) or 0
+                            meals_missing = (total == 0)
+                except Exception as e:
+                    logging.warning(f"meals check failed for {chat_id}: {e}")
+
+                # --- Проверка активности за сегодня ---
+                activity_missing = True
+                try:
+                    # можно использовать быстрый эндпоинт, если добавил /api/activity/today
+                    async with session.get(f"{BACKEND_URL}/api/activity/today/{chat_id}") as r_act:
+                        if r_act.status == 200:
+                            a = await r_act.json()
+                            activity_missing = (not a.get("present"))
+                        else:
+                            # fallback через историю
+                            async with session.get(f"{BACKEND_URL}/api/activity_history/{chat_id}?page=1") as r_hist:
+                                if r_hist.status == 200:
+                                    h = await r_hist.json()
+                                    days = h.get("days", [])
+                                    if days and days[0].get("date") == today_local_str:
+                                        activity_missing = False
+                except Exception as e:
+                    logging.warning(f"activity check failed for {chat_id}: {e}")
+
+                # --- Формируем и шлём напоминания ---
+                if meals_missing or activity_missing:
+                    parts = ["🌙 *Вечернее напоминание*"]
+                    if meals_missing:
+                        parts.append("🍽️ Сегодня вы ещё не добавили приёмы пищи. Это важно для корректного подсчёта.")
+                    if activity_missing:
+                        parts.append("🏃‍♂️ Активность за сегодня отсутствует. Укажите *активные калории* и *шаги*.")
+
+                    text = "\n\n".join(parts)
+                    kb = []
+
+                    if activity_missing:
+                        kb.append([InlineKeyboardButton("➕ Добавить активность", callback_data="add_activity")])
+                    if meals_missing:
+                        kb.append([InlineKeyboardButton("➕ Добавить приём пищи", callback_data="add")])
+
+                    try:
+                        await app.bot.send_message(
+                            chat_id=chat_id,
+                            text=text + "\n\n📌 Это займёт минуту — данные помогут точнее считать дефицит 💪",
+                            parse_mode="Markdown",
+                            reply_markup=InlineKeyboardMarkup(kb) if kb else None
+                        )
+                    except Exception as e:
+                        logging.warning(f"send reminder failed {chat_id}: {e}")
+
+    except Exception as e:
+        logging.error(f"evening reminders error: {e}")
+
+async def show_activity_prompt(update_or_query, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает форму ввода активности (ккал и шаги)."""
+    if hasattr(update_or_query, "callback_query") and update_or_query.callback_query:
+        q = update_or_query.callback_query
+        await q.answer()
+        chat = update_or_query.effective_chat
+        try:
+            await q.message.delete()
+        except Exception:
+            pass
+        msg = await chat.send_message(
+            "📝 Введите *активные калории* и *шаги* в одном сообщении.\n\n"
+            "Примеры:\n• `450 8200`\n• `ккал 520, шаги 9000`\n\n"
+            "_Можно любым порядком, я сам разберу._",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
+        )
+    else:
+        chat = update_or_query.effective_chat
+        msg = await chat.send_message(
+            "📝 Введите *активные калории* и *шаги* в одном сообщении.\n\n"
+            "Примеры:\n• `450 8200`\n• `ккал 520, шаги 9000`",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
+        )
+    context.user_data['messages_to_delete'] = [msg.message_id]
+    return ACTIVITY_INPUT
+
+
+async def handle_activity_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Парсит два числа (активные ккал и шаги) и отправляет на бэкенд."""
+    text = (update.message.text or "").replace(",", " ")
+    nums = re.findall(r"\d+", text)
+    if len(nums) < 2:
+        await update.message.reply_text(
+            "⚠️ Нужно два числа: ккал и шаги. Пример: `480 9500`",
+            parse_mode="Markdown"
+        )
+        return ACTIVITY_INPUT
+
+    # эвристика: большее число считаем шагами
+    a, b = int(nums[0]), int(nums[1])
+    active_kcal, steps = (a, b) if a < b else (b, a)
+
+    loading = await update.message.reply_text("⏳ Сохраняю активность...")
+    payload = {"chat_id": update.effective_chat.id, "active_kcal": active_kcal, "steps": steps}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{BACKEND_URL}/api/activity/log", json=payload) as resp:
+                if resp.status == 200:
+                    await loading.edit_text(f"✅ Готово! Сохранено: *{active_kcal}* ккал, *{steps}* шагов.",
+                                            parse_mode="Markdown")
+                else:
+                    err = await resp.text()
+                    logging.error(f"activity save failed: {resp.status} - {err}")
+                    await loading.edit_text("⚠️ Не удалось сохранить активность. Попробуйте позже.")
+    except aiohttp.ClientError as e:
+        logging.error(f"activity save network error: {e}")
+        await loading.edit_text("⚠️ Ошибка сети. Попробуйте позже.")
+
+    await show_main_menu(update, context)
+    return SELECT_MENU
+
 
 async def on_startup(app: Application):
     """Действия при запуске бота: установка команд, запуск планировщика."""
@@ -583,7 +726,7 @@ async def on_startup(app: Application):
     ])
     scheduler = AsyncIOScheduler(timezone=TIMEZONE)
     # Напоминание в 21:00 по времени Алматы
-    scheduler.add_job(remind_missing_meals, 'cron', hour=21, minute=0, args=[app])
+    scheduler.add_job(remind_missing_meals, 'cron', hour=21, minute=11, args=[app])
     scheduler.start()
     logging.info("APScheduler started.")
 
@@ -597,16 +740,25 @@ def main():
     application = Application.builder().token(app_token).post_init(on_startup).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[
+            CommandHandler("start", start),
+            CallbackQueryHandler(handle_menu_selection,
+                                 pattern=r"^(add|add_activity|today_meals|progress|history|current)$"),
+            CallbackQueryHandler(back_to_main_menu, pattern=r"^back_to_main$"),
+        ],
         states={
             ASK_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_code)],
             SELECT_MENU: [
                 CallbackQueryHandler(back_to_main_menu, pattern=r"^back_to_main$"),
                 CallbackQueryHandler(handle_menu_selection),
             ],
+            ACTIVITY_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_activity_input),
+                CallbackQueryHandler(back_to_main_menu, pattern=r"^back_to_main$")
+            ],
             ASK_PHOTO: [
                 CallbackQueryHandler(ask_photo_for_meal, pattern=r"^meal_"),
-                MessageHandler(filters.PHOTO, process_photo), # Обработка фото здесь
+                MessageHandler(filters.PHOTO, process_photo),  # Обработка фото здесь
                 CallbackQueryHandler(back_to_main_menu, pattern=r"^back_to_main$")
             ],
             HANDLE_SAVE: [CallbackQueryHandler(handle_save_confirmation, pattern=r"^save_")],

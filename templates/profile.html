@@ -41,7 +41,8 @@
         popupOverlay.style.transition = 'opacity 0.3s ease';
         popupOverlay.style.opacity = '0';
         setTimeout(() => {
-            popupOverlay.style.display = 'none';
+popupOverlay.style.display = 'none';
+lockScroll(false);
         }, 300);
     }
 }
@@ -94,6 +95,17 @@
         margin-bottom: 0.5rem;
     }
 
+    .flip-card-back {
+  position: relative;
+}
+.flip-card-back::after{
+  content:"";
+  position:absolute; left:0; right:0; bottom:0; height:28px;
+  pointer-events:none;
+  background: linear-gradient(to bottom, rgba(243,244,246,0), rgba(243,244,246,1));
+}
+
+
     .progress-bar-animate { transition: width 0.5s ease-out; }
 
   /* Общие анимации */
@@ -104,6 +116,11 @@
     from {opacity: 0; transform: scale(0.9);}
     to {opacity: 1; transform: scale(1);}
   }
+
+  @media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
 
   /* Анимация пульсирующего фона */
   @keyframes pulse-background {
@@ -385,8 +402,8 @@
 </style>
 <div class="max-w-7xl mx-auto px-4 py-6">
 
-    <div id="infoBanner" class="relative bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl p-6 mb-6 shadow-lg animate-fade-in">
-    <button onclick="hideBanner()" class="absolute top-3 right-4 text-white/70 hover:text-white text-2xl font-bold">&times;</button>
+<div id="infoBanner" class="relative bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl p-6 mb-6 shadow-lg">
+<button onclick="hideBanner()" aria-label="Скрыть баннер" class="absolute top-3 right-4 text-white/70 hover:text-white text-2xl font-bold">&times;</button>
 
     <div class="flex items-center">
         <div class="hidden sm:block mr-5 text-4xl opacity-80">⌚️</div>
@@ -399,7 +416,10 @@
 </div>
 
 <div id="restoreBannerContainer" class="text-center mb-6" style="display: none;">
-    <button onclick="showBanner()" class="text-sm text-blue-600 hover:underline font-semibold">Показать приветственное сообщение</button>
+<button onclick="showBanner()" aria-controls="infoBanner"
+        class="text-sm text-blue-600 hover:underline font-semibold">
+  Показать приветственное сообщение
+</button>
 </div>
     <div class="flex flex-wrap gap-2 border-b mb-6 overflow-x-auto scrollbar-hide px-1">
     <a href="/profile"
@@ -442,9 +462,13 @@
             </div>
 
             {% if user.avatar %}
-              <img src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}" alt="Avatar" class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-blue-200 shadow-lg object-cover">
+<img loading="lazy" width="96" height="96"
+     src="{{ url_for('serve_uploaded_file', filename=user.avatar) }}" alt="Avatar"
+     class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-blue-200 shadow-lg object-cover">
             {% else %}
-              <img src="https://www.svgrepo.com/show/452070/user-avatar.svg" alt="Default Avatar" class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-gray-200 shadow-lg">
+<img loading="lazy" width="96" height="96"
+     src="https://www.svgrepo.com/show/452070/user-avatar.svg" alt="Default Avatar"
+     class="w-24 h-24 mx-auto rounded-full ring-4 ring-offset-4 ring-gray-200 shadow-lg">
             {% endif %}
             <h2 class="mt-5 text-xl font-bold text-slate-900">{{ user.name }}</h2>
 <p class="text-sm text-slate-500">{{ user.email }}</p>
@@ -610,7 +634,7 @@
             <div class="locked-icon">🔒</div>
             <p class="locked-text">Доступ к группам</p>
             <p class="text-sm text-slate-600 mb-3">открыт по подписке</p>
-            <a href="#" class="btn btn-primary btn-sm">Активировать</a>
+<a href="{{ url_for('purchase_page') }}" class="btn btn-primary btn-sm">Активировать</a>
         </div>
         {% endif %}
     </div>
@@ -684,7 +708,7 @@
             <div class="locked-icon">📊</div>
             <p class="locked-text">Визуальная аналитика</p>
             <p class="text-sm text-slate-600 mb-3">доступна по подписке</p>
-            <a href="#" class="btn btn-primary btn-sm">Активировать PRO</a>
+<a href="{{ url_for('purchase_page') }}" class="btn btn-primary btn-sm">Активировать PRO</a>
         </div>
         {% endif %}
     </div>
@@ -980,7 +1004,8 @@
 {%- endmacro -%}
 {% endif %}
 
-<div id="mealModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeMealModal()">
+<div id="mealModal" role="dialog" aria-modal="true" aria-labelledby="modalMealTitle"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeMealModal()">
   <div class="card w-full max-w-md p-0 relative animate-fade-in" onclick="event.stopPropagation()">
     <button onclick="closeMealModal()" class="absolute top-3 right-4 text-slate-500 text-2xl hover:text-slate-700 z-20">&times;</button>
 
@@ -1064,11 +1089,12 @@
   <p class="text-slate-500">Это может занять до 30 секунд.</p>
 </div>
 
-<div id="telegramModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+<div id="telegramModal" role="dialog" aria-modal="true" aria-labelledby="telegramModalTitle"
+     class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
   <div class="card w-full max-w-md p-6 relative space-y-4 text-center animate-fade-in" onclick="event.stopPropagation()">
     <button onclick="closeTelegramModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600">&times;</button>
-    <h2 class="text-xl font-bold">🔐 Привязка Telegram</h2>
-    <p class="text-slate-600 text-sm">Отправьте этот код в <a href="https://t.me/DietFor35MinuteBot" target="_blank" class="font-semibold text-blue-600 underline">Telegram-бота</a>, чтобы связать аккаунты:</p>
+<h2 id="telegramModalTitle" class="text-xl font-bold">🔐 Привязка Telegram</h2>
+    <p class="text-slate-600 text-sm">Отправьте этот код в <a href="https://t.me/TestKilogrBot" target="_blank" class="font-semibold text-blue-600 underline">Telegram-бота</a>, чтобы связать аккаунты:</p>
     <div class="bg-slate-100 rounded-lg px-4 py-3 text-2xl font-mono tracking-widest inline-block border border-slate-200" id="tgCodeDisplay">...</div>
     <button onclick="copyCode()" class="btn btn-secondary w-full">📋 Скопировать код</button>
   </div>
@@ -1212,14 +1238,13 @@
         document.getElementById('analyzeMealBtn').disabled = false;
         document.getElementById('manualMealForm').reset();
         switchMealTab('manual');
-        const modal = document.getElementById('mealModal');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
+        openModal('mealModal');
+
     }
 
     function closeMealModal() {
-        document.getElementById('mealModal').classList.add('hidden');
-        document.getElementById('mealModal').classList.remove('flex');
+   closeModal('mealModal');
+
     }
 
     function analyzeMeal() {
@@ -1325,16 +1350,16 @@
             .then(data => {
                 if (data.code) {
                     document.getElementById('tgCodeDisplay').textContent = data.code;
-                    document.getElementById('telegramModal').classList.add('flex');
-                    document.getElementById('telegramModal').classList.remove('hidden');
+                    openModal('telegramModal');
+
                 } else { alert('Не удалось сгенерировать код.'); }
             })
             .catch(err => alert('Ошибка при генерации кода: ' + err.message));
     }
 
     function closeTelegramModal() {
-        document.getElementById('telegramModal').classList.add('hidden');
-        document.getElementById('telegramModal').classList.remove('flex');
+        closeModal('telegramModal');
+
     }
 
     function copyCode() {
@@ -1375,14 +1400,14 @@
     const editProfileModal = document.getElementById('editProfileModal');
     function openEditProfileModal() {
         if (editProfileModal) {
-            editProfileModal.classList.remove('hidden');
-            editProfileModal.classList.add('flex');
+            openModal('editProfileModal');
+
         }
     }
     function closeEditProfileModal() {
         if (editProfileModal) {
-            editProfileModal.classList.add('hidden');
-            editProfileModal.classList.remove('flex');
+            closeModal('editProfileModal');
+
         }
     }
 
@@ -1446,33 +1471,16 @@
     function renderCharts(data) {
         const { labels, datasets } = data;
 
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                },
-            },
-            scales: {
-                x: { grid: { display: false } },
-                y: {
-                    beginAtZero: false,
-                    ticks: {
-                        maxTicksLimit: 5
-                    }
-                }
-            },
-            elements: {
-                point: { radius: 2 },
-                line: {
-                    borderWidth: 2,
-                    tension: 0.4 // сглаживание линии
-                }
-            }
-        };
+       const commonOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  devicePixelRatio: 2,
+  plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+  scales: { x: { grid: { display: false } }, y: { beginAtZero: false, ticks: { maxTicksLimit: 5 } } },
+  elements: { point: { radius: 2 }, line: { borderWidth: 2, tension: 0.4 } }
+};
+
 
         // График веса
         new Chart(document.getElementById('weightChart').getContext('2d'), {
@@ -1622,5 +1630,42 @@ function closeDeficitHistoryModal() {
         deficitModal.classList.remove('flex');
     }
 }
+
+    function lockScroll(lock = true) {
+  document.documentElement.style.overflow = lock ? 'hidden' : '';
+}
+
+function trapFocus(modalEl) {
+  const focusables = modalEl.querySelectorAll(
+    'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  modalEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  });
+  (first || modalEl).focus();
+}
+
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.remove('hidden'); m.classList.add('flex');
+  lockScroll(true);
+  setTimeout(() => trapFocus(m), 0);
+}
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add('hidden'); m.classList.remove('flex');
+  lockScroll(false);
+}
+
 </script>
 {% endblock %}

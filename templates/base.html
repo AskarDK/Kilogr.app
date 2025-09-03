@@ -45,9 +45,17 @@
   <header class="bg-white shadow-md sticky top-0 z-50" x-data="{ isOpen: false }">
     <div class="max-w-7xl mx-auto px-4">
       <div class="flex justify-between items-center py-4">
-        <a href="/profile" class="text-2xl font-bold text-gray-800 hover:text-blue-600 transition">
-          <span class="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Kilogr.app</span>
-        </a>
+        <a href="/profile" class="flex items-center">
+  <img
+    src="{{ url_for('static', filename='logo.png') }}"
+    alt="Kilogr.app"
+    class="h-10 md:h-12 w-auto object-contain"
+    width="1730"
+    height="379"
+    loading="lazy"
+  />
+</a>
+
 
         <nav class="hidden md:flex items-center space-x-6 text-sm">
           {% if session.user_id %}
@@ -59,7 +67,12 @@
             {% endif %}
 
             <a href="/manual_activity" class="nav-link">Добавить активность</a>
-            <a href="/logout" class="text-red-500 font-medium hover:underline">Выйти</a>
+<a href="/trainings-calendar" class="nav-link">Расписание</a>
+{% if is_trainer_user %}
+  <a href="/trainings" class="nav-link">Тренировки</a>
+{% endif %}
+<a href="/logout" class="text-red-500 font-medium hover:underline">Выйти</a>
+
           {% else %}
             <a href="/login" class="nav-link">Вход</a>
             <a href="/register" class="nav-link">Регистрация</a>
@@ -84,8 +97,13 @@
                 </a>
               {% endif %}
 
-              <a href="/manual_activity" class="mobile-nav-link">Добавить активность</a>
-              <a href="/logout" class="mobile-nav-link text-red-500">Выйти</a>
+              <a href="/manual_activity" class="nav-link">Добавить активность</a>
+<a href="/trainings-calendar" class="nav-link">Расписание</a>
+{% if is_trainer_user %}
+  <a href="/trainings" class="nav-link">Тренировки</a>
+{% endif %}
+<a href="/logout" class="text-red-500 font-medium hover:underline">Выйти</a>
+
             {% else %}
               <a href="/login" class="mobile-nav-link">Вход</a>
               <a href="/register" class="mobile-nav-link">Регистрация</a>
