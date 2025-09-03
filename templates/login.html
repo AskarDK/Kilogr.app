@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <title>Вход | Kilogr.app</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  {# --- Редирект авторизованным пользователям --- #}
+  {% if session.user_id or (current_user and current_user.is_authenticated) %}
+    <script>
+      // Быстрый редирект на клиенте
+      window.location.replace('/profile');
+    </script>
+    <noscript>
+      <!-- Фолбэк, если отключен JS -->
+      <meta http-equiv="refresh" content="0; url=/profile">
+    </noscript>
+  {% endif %}
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -87,7 +100,7 @@
 
     <div class="mt-6">
       <a href="#" class="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-xl transition-colors hover:bg-gray-50">
-        <svg class="w-6 h-6" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="m24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.223 0-9.657-3.657-11.303-8.591l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.091 35.636 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+        <svg class="w-6 h-6" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#FF3D00" d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="m24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.223 0-9.657-3.657-11.303-8.591l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.091 35.636 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
         <span class="text-gray-700 font-medium">Войти через Google</span>
       </a>
     </div>
@@ -155,12 +168,9 @@
   const eyeOpen = document.getElementById('eye-open');
   const eyeClosed = document.getElementById('eye-closed');
 
-  togglePassword.addEventListener('click', function (e) {
-    // toggle the type attribute
+  togglePassword.addEventListener('click', function () {
     const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
     password.setAttribute('type', type);
-
-    // toggle the eye icon
     eyeOpen.classList.toggle('hidden');
     eyeClosed.classList.toggle('hidden');
   });

@@ -810,8 +810,15 @@ def inject_user():
 # ------------------ ROUTES ------------------
 
 @app.route('/')
-def home():
-    return redirect('/login')
+def index():
+    if session.get('user_id'):
+        return redirect(url_for('profile'))
+    return render_template('index.html')
+
+# алиас для /index, чтобы не было дубля логики
+@app.route('/index')
+def index_alias():
+    return redirect(url_for('index'))
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -879,39 +886,42 @@ def register():
 
     return render_template('register.html')
 
-@app.route('/profile')
-@login_required # Заменяем вашу старую функцию profile этой
 
+@app.route('/profile')
+@login_required
 def profile():
     user_id = session.get('user_id')
     user = db.session.get(User, user_id)
 
-    # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-    # Проверяем, существует ли пользователь с таким ID из сессии
+    # --- Проверка валидности пользователя из сессии ---
     if not user:
-        # Если нет, значит сессия "протухла". Чистим её и отправляем на логин.
         session.clear()
         flash("Ваша сессия была недействительна. Пожалуйста, войдите снова.", "warning")
         return redirect(url_for('login'))
-    # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
-    if not user_id: # Эту проверку можно даже удалить, так как @login_required уже делает это
-        return redirect('/login')
+    # Можно убрать, @login_required уже защищает, но оставим как «страховку»
+    if not user_id:
+        return redirect(url_for('login'))
 
+    # Сохраняем «до изменений» email (нужно в UI)
     session['user_email_before_edit'] = user.email
 
-
-    user = db.session.get(User, user_id)
+    # Базовые данные
     age = calculate_age(user.date_of_birth) if user.date_of_birth else None
-    diet = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
+    diet_obj = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
     today_activity = Activity.query.filter_by(user_id=user_id, date=date.today()).first()
 
-    analyses = BodyAnalysis.query.filter_by(user_id=user_id).order_by(BodyAnalysis.timestamp.desc()).limit(2).all()
+    analyses = (BodyAnalysis.query
+                .filter_by(user_id=user_id)
+                .order_by(BodyAnalysis.timestamp.desc())
+                .limit(2)
+                .all())
     latest_analysis = analyses[0] if len(analyses) > 0 else None
     previous_analysis = analyses[1] if len(analyses) > 1 else None
 
-    total_meals = db.session.query(func.sum(MealLog.calories)).filter_by(user_id=user.id,
-                                                                         date=date.today()).scalar() or 0
+    total_meals = (db.session.query(func.sum(MealLog.calories))
+                   .filter_by(user_id=user.id, date=date.today())
+                   .scalar() or 0)
     today_meals = MealLog.query.filter_by(user_id=user.id, date=date.today()).all()
 
     metabolism = latest_analysis.metabolism if latest_analysis else 0
@@ -928,22 +938,119 @@ def profile():
     if not missing_meals and not missing_activity and metabolism is not None:
         deficit = (metabolism + (active_kcal or 0)) - total_meals
 
+    # --- Какая у пользователя «основная» группа (если есть) ---
     user_memberships = GroupMember.query.filter_by(user_id=user.id).all()
     user_joined_group = user.own_group if user.own_group else (user_memberships[0].group if user_memberships else None)
 
+    diet_obj = Diet.query.filter_by(user_id=user_id).order_by(Diet.date.desc()).first()
+    diet = None
+    if diet_obj:
+        diet = {
+            "total_kcal": getattr(diet_obj, "total_kcal", None) or getattr(diet_obj, "calories", None),
+            "protein": getattr(diet_obj, "protein", None),
+            "fat": getattr(diet_obj, "fat", None),
+            "carbs": getattr(diet_obj, "carbs", None),
+            "meals": {"breakfast": [], "lunch": [], "dinner": [], "snack": []}
+        }
+
+        # Источники блюд могут быть разные: JSON-поле, Python-список словарей, relation items и т.п.
+        meals_source = None
+
+        if getattr(diet_obj, "meals", None):
+            meals_source = diet_obj.meals
+
+            # 2) diet_obj.meals_json (строка JSON)
+        if meals_source is None and getattr(diet_obj, "meals_json", None):
+            try:
+                meals_source = json.loads(diet_obj.meals_json)
+            except Exception:
+                meals_source = None
+
+            # 3) отдельные поля breakfast/lunch/dinner/snack (списки/JSON-строки)
+        if meals_source is None:
+            per_meal = {}
+            for key in ("breakfast", "lunch", "dinner", "snack"):
+                val = getattr(diet_obj, key, None)
+                if val:
+                    if isinstance(val, str):
+                        try:
+                            per_meal[key] = json.loads(val)
+                        except Exception:
+                            per_meal[key] = []
+                    else:
+                        per_meal[key] = val
+            if per_meal:
+                meals_source = per_meal
+
+            # 4) relation items (например Diet.items)
+        if meals_source is None and getattr(diet_obj, "items", None):
+            meals_source = diet_obj.items
+
+            # Утилита добавления пункта
+
+        def push(meal_type, name, grams=None, kcal=None):
+            mt = (meal_type or "").lower()
+            if mt in diet["meals"]:
+                diet["meals"][mt].append({
+                    "name": name or "Блюдо",
+                    "grams": grams,
+                    "kcal": kcal
+                })
+
+            # Заполняем блюда из разных форматов
+
+        if isinstance(meals_source, dict):
+            for k in ("breakfast", "lunch", "dinner", "snack"):
+                for it in (meals_source.get(k, []) or []):
+                    if isinstance(it, dict):
+                        grams = it.get("grams") or it.get("weight_g")
+                        kcal = it.get("kcal") or it.get("calories")
+                        name = it.get("name") or it.get("title")
+                    else:
+                        grams = getattr(it, "grams", None) or getattr(it, "weight_g", None)
+                        kcal = getattr(it, "kcal", None) or getattr(it, "calories", None)
+                        name = getattr(it, "name", None) or getattr(it, "title", None)
+                    push(k, name, grams, kcal)
+
+        elif isinstance(meals_source, list):
+            for it in meals_source:
+                if isinstance(it, dict):
+                    mt = it.get("meal_type") or it.get("type") or it.get("meal")
+                    grams = it.get("grams") or it.get("weight_g")
+                    kcal = it.get("kcal") or it.get("calories")
+                    name = it.get("name") or it.get("title")
+                else:
+                    mt = getattr(it, "meal_type", None)
+                    grams = getattr(it, "grams", None) or getattr(it, "weight_g", None)
+                    kcal = getattr(it, "kcal", None) or getattr(it, "calories", None)
+                    name = getattr(it, "name", None) or getattr(it, "title", None)
+                push(mt, name, grams, kcal)
+
+            # Если суммарные калории не заданы — считаем из блюд
+        if not diet["total_kcal"]:
+            try:
+                diet["total_kcal"] = sum(
+                    (i.get("kcal") or 0)
+                    for lst in diet["meals"].values() for i in lst
+                ) or None
+            except Exception:
+                pass
+
+    # --- Прогресс жиросжигания ---
     fat_loss_progress = None
     if latest_analysis and latest_analysis.fat_mass and user.fat_mass_goal and latest_analysis.fat_mass > user.fat_mass_goal:
         start_datetime = latest_analysis.timestamp
         today = date.today()
 
-        meal_data = db.session.query(MealLog.date, func.sum(MealLog.calories)).filter(
-            MealLog.user_id == user_id, MealLog.date >= start_datetime.date()
-        ).group_by(MealLog.date).all()
+        meal_data = (db.session.query(MealLog.date, func.sum(MealLog.calories))
+                     .filter(MealLog.user_id == user_id, MealLog.date >= start_datetime.date())
+                     .group_by(MealLog.date)
+                     .all())
         meal_map = dict(meal_data)
 
-        activity_data = db.session.query(Activity.date, Activity.active_kcal).filter(
-            Activity.user_id == user_id, Activity.date >= start_datetime.date()
-        ).all()
+        activity_data = (db.session.query(Activity.date, Activity.active_kcal)
+                         .filter(Activity.user_id == user_id, Activity.date >= start_datetime.date())
+                         .all())
         activity_map = dict(activity_data)
 
         total_accumulated_deficit = 0
@@ -955,18 +1062,15 @@ def profile():
                 consumed = meal_map.get(current_day, 0)
                 burned_active = activity_map.get(current_day, 0)
 
-                # --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
-                if i == 0:  # Это день анализа
-                    # Убираем калории, съеденные ДО замера
-                    calories_before_analysis = db.session.query(func.sum(MealLog.calories)).filter(
-                        MealLog.user_id == user_id,
-                        MealLog.date == current_day,
-                        MealLog.created_at < start_datetime
-                    ).scalar() or 0
+                # День анализа: исключаем еду до замера и не учитываем активность
+                if i == 0:
+                    calories_before_analysis = (db.session.query(func.sum(MealLog.calories))
+                                                .filter(MealLog.user_id == user_id,
+                                                        MealLog.date == current_day,
+                                                        MealLog.created_at < start_datetime)
+                                                .scalar() or 0)
                     consumed -= calories_before_analysis
-                    # Игнорируем активность за день замера, т.к. нет точного времени
                     burned_active = 0
-                # --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
                 daily_deficit = (metabolism + burned_active) - consumed
                 if daily_deficit > 0:
@@ -993,7 +1097,7 @@ def profile():
         'profile.html',
         user=user,
         age=age,
-        diet=diet,
+        diet=diet,                          # <- нормализованная структура для шаблона
         today_activity=today_activity,
         latest_analysis=latest_analysis,
         previous_analysis=previous_analysis,
@@ -1011,6 +1115,7 @@ def profile():
         fat_loss_progress=fat_loss_progress,
         just_activated=just_activated
     )
+
 @app.route('/logout')
 def logout():
     session.clear()

@@ -1,63 +1,51 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% set title = (group.name ~ " — группа") %}
 
 {% block content %}
 <style>
-  /* Стили для Lightbox (просмотр изображений) */
-  #image-lightbox {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: none; justify-content: center; align-items: center;
-    z-index: 1000; cursor: pointer;
-  }
+  /* --------- Мелкие анимации и доработки UI --------- */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+  .fade-in { animation: fadeIn .2s ease-out; }
+  .chip { @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium; }
+  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-200; }
+  .card-hover { transition: transform .15s ease, box-shadow .15s ease; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -14px rgba(0,0,0,.35); }
+
+  /* --------- Lightbox (просмотр изображений в чате) --------- */
+  #image-lightbox { position: fixed; inset: 0; display: none; justify-content: center; align-items: center; z-index: 1000; cursor: zoom-out;
+                    background: rgba(0,0,0,.85); }
   #image-lightbox.visible { display: flex; }
-  #image-lightbox img {
-    max-width: 90%; max-height: 90%; object-fit: contain;
-    border-radius: 8px; box-shadow: 0 0 25px rgba(0,0,0,0.5);
-  }
-  #lightbox-close {
-    position: absolute; top: 20px; right: 30px; color: white;
-    font-size: 40px; font-weight: bold; cursor: pointer;
-  }
+  #image-lightbox img { max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 10px; box-shadow: 0 0 28px rgba(0,0,0,.5); }
+  #lightbox-close { position: absolute; top: 18px; right: 26px; color: #fff; font-size: 36px; font-weight: 800; }
 
-  /* СТИЛИ ДЛЯ ЧАТА */
-  .chat-bubble {
-    padding: 8px 12px;
-    max-width: 100%;
-    word-wrap: break-word;
-    border-radius: 1.25rem;
-  }
-  .chat-bubble-me {
-    background-image: linear-gradient(to right, #3b82f6, #6366f1);
-    color: white;
-  }
-  .chat-bubble-other {
-    background-color: #e5e7eb;
-    color: #1f2937;
-  }
-  .group-start.chat-bubble-me { border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; }
-  .group-start.chat-bubble-other { border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; }
-  .group-middle.chat-bubble-me { border-radius: 1.25rem 0.25rem 0.25rem 1.25rem; }
-  .group-middle.chat-bubble-other { border-radius: 0.25rem 1.25rem 1.25rem 0.25rem; }
-  .group-end.chat-bubble-me { border-radius: 1.25rem 0.25rem 1.25rem 1.25rem; }
-  .group-end.chat-bubble-other { border-radius: 0.25rem 1.25rem 1.25rem 1.25rem; }
+  /* --------- Чат-пузыри --------- */
+  .chat-bubble { padding: 8px 12px; max-width: 100%; word-wrap: break-word; border-radius: 1.25rem; }
+  .chat-bubble-me { background-image: linear-gradient(to right, #3b82f6, #6366f1); color:#fff; }
+  .chat-bubble-other { background-color:#e5e7eb; color:#1f2937; }
+  .group-start.chat-bubble-me { border-radius: 1.25rem 1.25rem .35rem 1.25rem; }
+  .group-start.chat-bubble-other { border-radius: 1.25rem 1.25rem 1.25rem .35rem; }
+  .group-middle.chat-bubble-me { border-radius: 1.25rem .35rem .35rem 1.25rem; }
+  .group-middle.chat-bubble-other { border-radius: .35rem 1.25rem 1.25rem .35rem; }
+  .group-end.chat-bubble-me { border-radius: 1.25rem .35rem 1.25rem 1.25rem; }
+  .group-end.chat-bubble-other { border-radius: .35rem 1.25rem 1.25rem 1.25rem; }
 
-  /* Анимация для появления виджета чата */
-  #chat-widget-container {
-      transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
-  }
-  /* Анимация для прогресс-бара */
-  .progress-bar-fill {
-      transition: width 0.5s ease-out;
-  }
+  /* --------- Чат-виджет показ/скрытие --------- */
+  #chat-widget-container { transition: opacity .25s ease, transform .25s ease; }
+  .progress-bar-fill { transition: width .45s ease; }
 </style>
 
-<div class="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
-  {# Flash messages for user feedback #}
+<div class="max-w-7xl mx-auto px-3 sm:px-4 py-6 space-y-6">
+
+  {# -------- Flash-сообщения -------- #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="mb-2">
+      <div class="space-y-2">
         {% for category, message in messages %}
-          <div class="p-2 mb-1 text-xs rounded-lg {% if category == 'error' %}bg-red-100 text-red-800{% elif category == 'success' %}bg-green-100 text-green-800{% elif category == 'warning' %}bg-yellow-100 text-yellow-800{% else %}bg-blue-100 text-blue-800{% endif %}" role="alert">
+          <div class="px-3 py-2 text-xs rounded-lg
+                      {% if category == 'error' %} bg-red-100 text-red-800
+                      {% elif category == 'success' %} bg-green-100 text-green-800
+                      {% elif category == 'warning' %} bg-yellow-100 text-yellow-800
+                      {% else %} bg-blue-100 text-blue-800 {% endif %}">
             {{ message }}
           </div>
         {% endfor %}
@@ -65,379 +53,526 @@
     {% endif %}
   {% endwith %}
 
-  <div class="flex flex-col lg:flex-row gap-4">
-
-    <div class="lg:w-3/4 space-y-4">
-        {# ... код ленты постов остается без изменений ... #}
-        {% if current_user.is_trainer and group.trainer_id == current_user.id %}
-        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200">
-            <h3 class="font-semibold text-lg text-gray-800 mb-3">Новая запись в ленте</h3>
-            <form action="{{ url_for('create_group_task', group_id=group.id) }}" method="POST" class="space-y-3 text-sm">
-              <div><input type="text" name="title" placeholder="Заголовок" required class="block w-full p-1.5 border-gray-300 rounded-md shadow-sm"></div>
-              <div><textarea name="description" placeholder="Описание..." rows="3" class="block w-full p-1.5 border-gray-300 rounded-md shadow-sm"></textarea></div>
-              <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                  <div class="flex items-center"><input type="checkbox" name="is_announcement" id="is-announcement" class="h-4 w-4 text-yellow-500 border-gray-300 rounded focus:ring-yellow-400"><label for="is-announcement" class="ml-2 text-gray-900">Это важное объявление</label></div>
-                  <input type="date" name="due_date" class="block p-1 border-gray-300 rounded-md shadow-sm" title="Укажите срок, если это задача">
-                </div>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition-colors shadow">Опубликовать</button>
-              </div>
-            </form>
-        </div>
-        {% endif %}
-         <div class="space-y-4">
-            {% set tasks = all_posts | selectattr('is_announcement', '==', false) | list %}
-            {% set announcements = all_posts | selectattr('is_announcement', '==', true) | list %}
-            {% if tasks or announcements %}
-                {% if tasks %}
-                <div>
-                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Активные задачи</h3>
-                    <div class="space-y-3">
-                        {% for task in tasks %}
-                            <div class="bg-purple-50 border-l-4 border-purple-500 p-3 rounded-r-md shadow-sm relative text-sm">
-                                <p class="font-bold text-purple-800 text-base">{{ task.title }}</p>
-                                {% if task.description %}<p class="text-purple-700 mt-1">{{ task.description | safe }}</p>{% endif %}
-                                <p class="text-xs text-purple-600 mt-2">Срок: {{ task.due_date.strftime('%d.%m.%Y') if task.due_date else 'Не указан' }}</p>
-                                {% if current_user.is_trainer and group.trainer_id == current_user.id %}
-                                <form action="{{ url_for('delete_group_task', task_id=task.id) }}" method="POST" class="absolute top-1 right-1"><button type="submit" class="text-red-400 hover:text-red-600 text-base" title="Удалить"><i class="fas fa-times-circle"></i></button></form>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                {% if announcements %}
-                <div>
-                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Объявления</h3>
-                    <div class="space-y-3">
-                        {% for ann in announcements %}
-                            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r-md shadow-sm relative text-sm">
-                                <p class="font-bold text-yellow-800 text-base">{{ ann.title }}</p>
-                                {% if ann.description %}<p class="text-yellow-700 mt-1">{{ ann.description | safe }}</p>{% endif %}
-                                <p class="text-xs text-gray-400 mt-2">Опубликовано: {{ ann.created_at.strftime('%d.%m.%Y в %H:%M') }}</p>
-                                {% if current_user.is_trainer and group.trainer_id == current_user.id %}
-                                <form action="{{ url_for('delete_group_task', task_id=ann.id) }}" method="POST" class="absolute top-1 right-1"><button type="submit" class="text-red-400 hover:text-red-600 text-base" title="Удалить"><i class="fas fa-times-circle"></i></button></form>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-            {% else %}
-                <div class="text-center p-10 bg-white rounded-xl shadow-md border border-gray-200">
-                    <i class="fas fa-bullhorn text-5xl text-gray-300 mb-4"></i>
-                    <h2 class="text-2xl font-bold text-gray-700">Лента группы пока пуста</h2>
-                    <p class="text-gray-500 mt-2">
-                        {% if current_user.is_trainer and group.trainer_id == current_user.id %}
-                            Вы можете создать первое объявление или задачу, используя форму выше.
-                        {% else %}
-                            Тренер еще не добавил ни одной записи. Как только здесь что-то появится, вы это увидите.
-                        {% endif %}
-                    </p>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="lg:w-1/4 space-y-4 flex flex-col">
-
-      {# ИНФО-БЛОК ГРУППЫ #}
-      <div class="bg-white p-3 rounded-xl shadow-md border border-gray-200">
-          {# ... код инфо-блока остается без изменений ... #}
-          <div class="p-4 space-y-4">
-            <h2 class="text-xl font-bold">{{ group.name }}</h2>
-            <p class="text-sm italic text-gray-600 mt-1">"{{ group.description or 'Без слогана.' }}"</p>
-            <div class="border-t pt-4">
-              <p class="text-xs text-gray-500 mb-1">Тренер</p>
-              <div class="flex items-center space-x-2">
-                <img src="{{ url_for('serve_uploaded_file', filename=group.trainer.avatar) if group.trainer.avatar else url_for('static', filename='default-avatar.png') }}" class="w-8 h-8 object-cover rounded-full" alt="Аватар тренера">
-                <p class="text-gray-800 font-semibold text-sm">{{ group.trainer.name }}</p>
-              </div>
+  {# -------- Хедер группы -------- #}
+  <section class="relative overflow-hidden rounded-3xl text-white">
+    <div class="relative bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-pink-600">
+      <div class="absolute inset-0 opacity-25"
+           style="background:
+           radial-gradient(800px 380px at -10% -30%, rgba(255,255,255,.35), transparent),
+           radial-gradient(700px 340px at 110% 120%, rgba(255,255,255,.35), transparent);">
+      </div>
+      <div class="relative z-10 p-5 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-start gap-3 md:gap-4">
+          <div class="shrink-0">
+            <img src="{{ url_for('serve_uploaded_file', filename=group.trainer.avatar) if group.trainer and group.trainer.avatar else url_for('static','default-avatar.png') }}"
+                 class="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover ring-2 ring-white/50" alt="Тренер">
+          </div>
+          <div>
+            <h1 class="text-2xl md:text-3xl font-bold tracking-tight">{{ group.name }}</h1>
+            <p class="text-white/90 text-sm mt-1 line-clamp-2">
+              {{ group.description or "Групповое пространство для объявлений, задач и общения." }}
+            </p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <span class="chip bg-white/15 backdrop-blur text-white border border-white/20">Участников: {{ group.members|length }}</span>
+              <span class="chip bg-white/15 backdrop-blur text-white border border-white/20">
+                Объявлений: {{ (all_posts | selectattr('is_announcement','==',true) | list | length) }}
+              </span>
+              <span class="chip bg-white/15 backdrop-blur text-white border border-white/20">
+                Задач: {{ (all_posts | selectattr('is_announcement','==',false) | list | length) }}
+              </span>
             </div>
-            <div>
-                <details>
-                    <summary class="text-sm text-gray-800 font-semibold cursor-pointer">Участники ({{ group.members|length }})</summary>
-                    <ul class="space-y-1.5 text-sm mt-2 pl-2 max-h-32 overflow-y-auto">
-                        {% for member_entry in group.members %}
-                          <li class="flex items-center space-x-2">
-                            <img src="{{ url_for('serve_uploaded_file', filename=member_entry.user.avatar) if member_entry.user.avatar else url_for('static', filename='default-avatar.png') }}" class="w-6 h-6 object-cover rounded-full" alt="Аватар участника">
-                            <span class="text-gray-700">{{ member_entry.user.name }}</span>
-                            {% if member_entry.user_id == current_user.id %}<span class="text-blue-500 font-semibold text-xs">(Вы)</span>{% endif %}
-                          </li>
-                        {% else %}
-                          <li class="text-gray-600 italic text-xs">В группе пока нет участников.</li>
-                        {% endfor %}
-                    </ul>
-                </details>
-            </div>
+          </div>
         </div>
-        <div class="p-3 border-t border-gray-200">
+
+        <div class="flex items-center gap-2">
+          {% if current_user.is_trainer and group.trainer_id == current_user.id %}
+            <span class="chip bg-white text-indigo-700"><i class="bi bi-shield-check mr-1"></i>Тренер</span>
+          {% endif %}
+
           {% if not is_member and not (current_user.is_trainer and group.trainer_id == current_user.id) %}
-              <form action="{{ url_for('join_group', group_id=group.id) }}" method="POST"><button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md">Присоединиться</button></form>
+            <form action="{{ url_for('join_group', group_id=group.id) }}" method="POST">
+              <button type="submit"
+                      class="px-4 py-2 rounded-xl bg-white text-indigo-700 hover:bg-white/90 font-semibold shadow-sm">
+                Присоединиться
+              </button>
+            </form>
           {% elif is_member and not (current_user.is_trainer and group.trainer_id == current_user.id) %}
-              <form action="{{ url_for('leave_group', group_id=group.id) }}" method="POST"><button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition shadow-md">Покинуть группу</button></form>
+            <form action="{{ url_for('leave_group', group_id=group.id) }}" method="POST">
+              <button type="submit"
+                      class="px-4 py-2 rounded-xl bg-white/15 text-white border border-white/30 hover:bg-white/25 font-semibold">
+                Покинуть группу
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# -------- Основной контент: лента + сайдбар -------- #}
+  <div class="grid lg:grid-cols-[1fr,360px] gap-6 items-start">
+
+    {# ---------- ЛЕВАЯ КОЛОНКА (лента) ---------- #}
+    <section class="space-y-4">
+
+      {# Composer: только тренер группы #}
+      {% if current_user.is_trainer and group.trainer_id == current_user.id %}
+      <div class="card card-hover p-4 fade-in">
+        <h3 class="font-semibold text-gray-800 mb-3">Создать запись</h3>
+        <form action="{{ url_for('create_group_task', group_id=group.id) }}" method="POST" class="space-y-3 text-sm">
+          <div class="grid md:grid-cols-2 gap-3">
+            <input type="text" name="title" placeholder="Заголовок" required
+                   class="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <div class="flex items-center gap-3">
+              <label class="inline-flex items-center gap-2">
+                <input type="checkbox" name="is_announcement" id="is-announcement"
+                       class="h-4 w-4 text-yellow-500 rounded border-gray-300 focus:ring-yellow-400">
+                <span class="text-gray-700">Сделать объявлением</span>
+              </label>
+              <input type="date" name="due_date"
+                     class="px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                     title="Срок (для задач)">
+            </div>
+          </div>
+          <textarea name="description" rows="3" placeholder="Описание (Markdown/текст)"
+                    class="w-full px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500"></textarea>
+          <div class="text-right">
+            <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow">
+              Опубликовать
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
+      {# Панель фильтров ленты #}
+      <div class="card p-2 md:p-3">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div class="inline-flex bg-gray-100 rounded-xl p-1 w-full sm:w-auto">
+            <button type="button" data-filter="all"
+                    class="tab-btn px-3 py-1.5 rounded-lg text-gray-700 font-medium bg-white shadow-sm">
+              Все
+            </button>
+            <button type="button" data-filter="tasks"
+                    class="tab-btn px-3 py-1.5 rounded-lg text-gray-600">
+              Задачи
+            </button>
+            <button type="button" data-filter="announcements"
+                    class="tab-btn px-3 py-1.5 rounded-lg text-gray-600">
+              Объявления
+            </button>
+          </div>
+
+          <div class="relative w-full sm:w-64">
+            <i class="bi bi-search absolute left-3 top-2.5 text-gray-400"></i>
+            <input id="feed-search" type="text" placeholder="Поиск в ленте…"
+                   class="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+      </div>
+
+      {# Лента постов #}
+      {% set tasks = all_posts | selectattr('is_announcement','==',false) | list %}
+      {% set announcements = all_posts | selectattr('is_announcement','==',true) | list %}
+      {% set hasAny = (tasks|length) or (announcements|length) %}
+
+      <div id="feed" class="space-y-3">
+        {% if hasAny %}
+          {% for item in all_posts %}
+            {% set is_ann = item.is_announcement %}
+            <article class="card card-hover p-4 feed-item"
+                     data-type="{{ 'announcements' if is_ann else 'tasks' }}"
+                     data-title="{{ (item.title or '')|lower }}"
+                     data-desc="{{ (item.description or '')|striptags|lower }}">
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3">
+                  <div class="mt-0.5">
+                    {% if is_ann %}
+                      <span class="chip bg-yellow-100 text-yellow-800"><i class="bi bi-megaphone-fill mr-1"></i>Объявление</span>
+                    {% else %}
+                      <span class="chip bg-purple-100 text-purple-800"><i class="bi bi-list-check mr-1"></i>Задача</span>
+                    {% endif %}
+                  </div>
+                  <div>
+                    <h4 class="text-base sm:text-lg font-semibold text-gray-900">{{ item.title }}</h4>
+                    {% if item.description %}
+                      <div class="prose prose-sm max-w-none text-gray-700 mt-1">{{ item.description | safe }}</div>
+                    {% endif %}
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                      {% if not is_ann %}
+                        <span class="chip bg-gray-100 text-gray-700">
+                          <i class="bi bi-hourglass-split mr-1"></i>
+                          Срок: {{ item.due_date.strftime('%d.%m.%Y') if item.due_date else 'не указан' }}
+                        </span>
+                      {% endif %}
+                      <span class="chip bg-gray-100 text-gray-700">
+                        <i class="bi bi-calendar-event mr-1"></i>
+                        Опубликовано: {{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '—' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {% if current_user.is_trainer and group.trainer_id == current_user.id %}
+                <form action="{{ url_for('delete_group_task', task_id=item.id) }}" method="POST"
+                      class="shrink-0">
+                  <button type="submit"
+                          class="p-2 rounded-lg text-rose-500 hover:bg-rose-50"
+                          title="Удалить запись">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <div class="card p-10 text-center">
+            <i class="bi bi-card-text text-5xl text-gray-300 mb-3"></i>
+            <div class="text-xl font-semibold text-gray-700">Лента группы пуста</div>
+            <p class="text-gray-500 mt-2">
+              {% if current_user.is_trainer and group.trainer_id == current_user.id %}
+                Создайте первое объявление или задачу через форму выше.
+              {% else %}
+                Тренер пока не опубликовал записи. Как только появятся — вы увидите их здесь.
+              {% endif %}
+            </p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ---------- ПРАВАЯ КОЛОНКА (сайдбар) ---------- #}
+    <aside class="space-y-4">
+
+      {# Инфо о группе #}
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-800 mb-3">О группе</h3>
+
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm italic text-gray-600">“{{ group.description or 'Без описания' }}”</p>
+          </div>
+
+          <div class="border-t pt-3">
+            <p class="text-xs text-gray-500 mb-1">Тренер</p>
+            <div class="flex items-center gap-2">
+              <img src="{{ url_for('serve_uploaded_file', filename=group.trainer.avatar) if group.trainer and group.trainer.avatar else url_for('static','default-avatar.png') }}"
+                   class="w-8 h-8 rounded-full object-cover" alt="Тренер">
+              <span class="text-sm font-semibold text-gray-800">{{ group.trainer.name if group.trainer else '—' }}</span>
+            </div>
+          </div>
+
+          <div>
+            <details class="group">
+              <summary class="cursor-pointer text-sm font-semibold text-gray-800 flex items-center justify-between">
+                Участники ({{ group.members|length }})
+                <i class="bi bi-chevron-down text-gray-400 group-open:rotate-180 transition"></i>
+              </summary>
+              <ul class="mt-2 max-h-40 overflow-auto space-y-1.5 pl-1">
+                {% for m in group.members %}
+                  <li class="flex items-center gap-2 text-sm">
+                    <img src="{{ url_for('serve_uploaded_file', filename=m.user.avatar) if m.user.avatar else url_for('static','default-avatar.png') }}"
+                         class="w-6 h-6 rounded-full object-cover">
+                    <span class="text-gray-700">{{ m.user.name }}</span>
+                    {% if m.user_id == current_user.id %}
+                      <span class="text-indigo-600 text-xs font-semibold">(Вы)</span>
+                    {% endif %}
+                  </li>
+                {% else %}
+                  <li class="text-xs text-gray-500 italic">Пока нет участников.</li>
+                {% endfor %}
+              </ul>
+            </details>
+          </div>
+
+          {% if not is_member and not (current_user.is_trainer and group.trainer_id == current_user.id) %}
+            <form action="{{ url_for('join_group', group_id=group.id) }}" method="POST">
+              <button type="submit" class="w-full px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700">
+                Присоединиться к группе
+              </button>
+            </form>
+          {% elif is_member and not (current_user.is_trainer and group.trainer_id == current_user.id) %}
+            <form action="{{ url_for('leave_group', group_id=group.id) }}" method="POST">
+              <button type="submit" class="w-full px-4 py-2 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700">
+                Покинуть группу
+              </button>
+            </form>
           {% endif %}
         </div>
       </div>
 
-{% if group_member_stats %}
-<div class="bg-white p-3 rounded-xl shadow-md border border-gray-200">
-  <h2 class="text-base font-semibold text-gray-800 mb-3">Прогресс участников</h2>
-  <div class="space-y-3">
-    {% for member_stat in group_member_stats %}
-      {% if not member_stat.is_trainer_in_group %}
-      <div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
-        <div class="flex items-center space-x-3 mb-3">
-          <img src="{{ url_for('serve_uploaded_file', filename=member_stat.user.avatar) if member_stat.user.avatar else url_for('static', filename='default-avatar.png') }}" class="w-8 h-8 object-cover rounded-full">
-          <span class="font-semibold text-gray-800 text-sm">{{ member_stat.user.name }}</span>
-        </div>
+      {# Прогресс участников #}
+      {% if group_member_stats %}
+      <div class="card p-4">
+        <h3 class="font-semibold text-gray-800 mb-3">Прогресс участников</h3>
+        <div class="space-y-3">
+          {% for s in group_member_stats %}
+            {% if not s.is_trainer_in_group %}
+              <div class="p-3 border rounded-xl">
+                <div class="flex items-center gap-3 mb-2">
+                  <img src="{{ url_for('serve_uploaded_file', filename=s.user.avatar) if s.user.avatar else url_for('static','default-avatar.png') }}"
+                       class="w-8 h-8 rounded-full object-cover">
+                  <span class="text-sm font-semibold text-gray-800">{{ s.user.name }}</span>
+                </div>
 
-        {% if member_stat.fat_loss_progress %}
-          {% set progress = member_stat.fat_loss_progress %}
-          <div class="text-sm">
-              <div class="flex justify-between mb-1 text-xs font-medium text-gray-500">
-                  <span>Прогресс (жир, кг)</span>
-                  <span>{{ "%.1f"|format(progress.current_kg) }} / <span class="font-bold text-green-600">{{ "%.1f"|format(progress.goal_kg) }}</span></span>
-              </div>
-              <div class="w-full bg-gray-200 rounded-full h-5 relative">
-                  <div class="progress-bar-fill bg-blue-600 h-5 rounded-full flex items-center justify-center" style="width: {{ progress.percentage|int }}%">
-                      <span class="text-white font-bold text-xs">{{ progress.percentage|int }}%</span>
+                {% if s.fat_loss_progress %}
+                  {% set p = s.fat_loss_progress %}
+                  <div class="text-sm">
+                    <div class="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>Жир (кг)</span>
+                      <span>{{ "%.1f"|format(p.current_kg) }} / <b class="text-emerald-600">{{ "%.1f"|format(p.goal_kg) }}</b></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-5 overflow-hidden">
+                      <div class="progress-bar-fill bg-indigo-600 h-5 flex items-center justify-center text-[11px] text-white font-bold"
+                           style="width: {{ p.percentage|int }}%">
+                        {{ p.percentage|int }}%
+                      </div>
+                    </div>
+                    <div class="text-right text-[11px] text-gray-500 mt-1">
+                      Старт: {{ "%.1f"|format(p.initial_kg) }} кг
+                    </div>
                   </div>
+                {% else %}
+                  <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded-lg text-center">
+                    Цель по снижению жира не установлена.
+                  </div>
+                {% endif %}
               </div>
-              <div class="text-right text-xs text-gray-500 mt-1">
-                  Начальный вес жира: {{ "%.1f"|format(progress.initial_kg) }} кг
-              </div>
-          </div>
-        {% else %}
-          <div class="text-center text-xs text-gray-500 p-3 bg-gray-50 rounded-lg">
-              Цель по снижению жировой массы не установлена.
-          </div>
-        {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-
-    </div>
+    </aside>
   </div>
 </div>
 
-{# ... весь остальной код (лайтбокс, виджет чата и скрипты) остается без изменений ... #}
+{# -------- Lightbox -------- #}
 <div id="image-lightbox" onclick="closeLightbox()">
   <span id="lightbox-close">&times;</span>
   <img id="lightbox-image" src="" alt="Просмотр изображения">
 </div>
-<button id="chat-toggle-button" class="fixed bottom-6 right-6 bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center z-50 hover:bg-blue-700 transition-transform transform hover:scale-110">
-  <i class="bi bi-chat-dots-fill" style="font-size: 1.75rem;"></i>
+
+{# -------- Плавающий чат -------- #}
+<button id="chat-toggle-button"
+        class="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center z-40">
+  <i class="bi bi-chat-dots-fill text-2xl"></i>
 </button>
-<div id="chat-widget-container" class="hidden fixed bottom-6 right-6 w-full max-w-sm h-[65vh] bg-white rounded-xl shadow-2xl flex flex-col z-40 origin-bottom-right transform scale-95 opacity-0">
-    <div class="flex justify-between items-center p-3 border-b bg-gray-50 rounded-t-xl cursor-move">
-        <h3 class="font-semibold text-gray-800">Обсуждение в группе</h3>
-        <button id="chat-widget-close-button" class="text-gray-400 hover:text-gray-800 text-2xl">&times;</button>
-    </div>
-    <div id="chat-messages-container" class="flex-grow overflow-y-auto p-3 space-y-1 flex flex-col bg-slate-50">
-        <p id="chat-placeholder" class="text-gray-500 text-center italic text-xs m-auto">Загрузка сообщений...</p>
-    </div>
-    <div class="p-3 border-t bg-white rounded-b-xl">
-         {% if current_user.is_trainer and group.trainer_id == current_user.id or is_member %}
-         <form id="chat-form" action="{{ url_for('post_group_image_message', group_id=group.id) }}" method="POST" enctype="multipart/form-data">
-        <div class="flex items-center border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-            <textarea name="text" placeholder="Сообщение..." rows="1" class="flex-grow p-2 border-none focus:ring-0 resize-none text-sm bg-transparent rounded-lg"></textarea>
 
-            {# --- CORRECTED FILE BUTTON --- #}
-            {# Use a button with type="button" to prevent form submission #}
-            <button type="button" onclick="document.getElementById('image-upload-widget').click()" class="p-2 text-gray-500 hover:text-blue-600 cursor-pointer">
-                <i class="fas fa-paperclip text-base"></i>
-            </button>
-            <input type="file" name="image" id="image-upload-widget" class="hidden" accept="image/*">
+<div id="chat-widget-container"
+     class="hidden fixed bottom-6 right-6 w-[92vw] max-w-sm h-[65vh] bg-white rounded-xl shadow-2xl flex flex-col z-40 origin-bottom-right opacity-0 scale-95">
+  <div class="flex items-center justify-between p-3 border-b rounded-t-xl bg-gray-50">
+    <h3 class="font-semibold text-gray-800">Обсуждение в группе</h3>
+    <button id="chat-widget-close-button" class="text-gray-500 hover:text-gray-800 text-2xl leading-none">&times;</button>
+  </div>
 
-            {# The submit button remains the same #}
-            <button type="submit" class="p-2 text-gray-500 hover:text-blue-600">
-                <i class="fas fa-paper-plane text-base"></i>
-            </button>
-        </div>
-        <span id="file-name-widget" class="text-xs text-gray-500 mt-1 pl-2"></span>
+  <div id="chat-messages-container" class="flex-1 p-3 overflow-y-auto bg-slate-50 space-y-1 flex flex-col">
+    <p id="chat-placeholder" class="text-gray-500 text-center italic text-xs m-auto">Загрузка сообщений…</p>
+  </div>
+
+  <div class="p-3 border-t">
+    {% if (current_user.is_trainer and group.trainer_id == current_user.id) or is_member %}
+    <form id="chat-form" action="{{ url_for('post_group_image_message', group_id=group.id) }}" method="POST" enctype="multipart/form-data">
+      <div class="flex items-center border border-gray-300 rounded-lg shadow-sm focus-within:ring-1 focus-within:ring-indigo-500">
+        <textarea name="text" rows="1" placeholder="Сообщение…" class="flex-1 p-2 rounded-l-lg bg-transparent focus:outline-none text-sm resize-none"></textarea>
+        <button type="button" onclick="document.getElementById('image-upload-widget').click()"
+                class="p-2 text-gray-500 hover:text-indigo-600">
+          <i class="fas fa-paperclip text-base"></i>
+        </button>
+        <input id="image-upload-widget" type="file" name="image" class="hidden" accept="image/*">
+        <button type="submit" class="p-2 text-gray-600 hover:text-indigo-600">
+          <i class="fas fa-paper-plane text-base"></i>
+        </button>
+      </div>
+      <span id="file-name-widget" class="block text-xs text-gray-500 mt-1 pl-1"></span>
     </form>
-      {% endif %}
-    </div>
+    {% else %}
+      <div class="text-center text-sm text-gray-500">Только участники могут писать в чат.</div>
+    {% endif %}
+  </div>
 </div>
+
 <script>
+/* -------- лайки сообщений -------- */
 function likeMessage(messageId) {
-    fetch(`/group_message/${messageId}/react`, {
-        method: 'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const reactionDiv = document.querySelector(`#message-${messageId} .reaction-display`);
-            const reactionIcon = document.querySelector(`#message-${messageId} .reaction-icon`);
-            if (reactionDiv) {
-                if (data.new_like_count > 0) {
-                    reactionDiv.classList.remove('hidden');
-                    reactionDiv.querySelector('.reaction-count').textContent = data.new_like_count;
-                } else {
-                    reactionDiv.classList.add('hidden');
-                }
-            }
-            if (reactionIcon) {
-                reactionIcon.classList.toggle('text-red-500', data.user_reacted);
-            }
+  fetch(`/group_message/${messageId}/react`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) return;
+      const root = document.querySelector(`#message-${messageId}`);
+      if(!root) return;
+      const badge = root.querySelector('.reaction-display');
+      const count = root.querySelector('.reaction-count');
+      const icon = root.querySelector('.reaction-icon');
+      if (badge && count) {
+        if (d.new_like_count > 0) {
+          badge.classList.remove('hidden');
+          count.textContent = d.new_like_count;
+        } else {
+          badge.classList.add('hidden');
         }
+      }
+      if (icon) icon.classList.toggle('text-red-500', d.user_reacted);
     });
 }
-document.addEventListener('DOMContentLoaded', function() {
-    const groupId = {{ group.id }};
-    let pollingInterval;
-    const messagesContainer = document.getElementById('chat-messages-container');
-    const chatForm = document.getElementById('chat-form');
-    function renderMessage(msg, lastMessage) {
-        const isLastInGroup = !lastMessage || lastMessage.user.name !== msg.user.name || lastMessage.is_current_user !== msg.is_current_user;
-        const showAvatar = isLastInGroup;
-        let groupClass = 'rounded-xl';
-        if (showAvatar && !isLastInGroup) groupClass = 'group-start';
-        else if (!showAvatar && !isLastInGroup) groupClass = 'group-middle';
-        else if (!showAvatar && isLastInGroup) groupClass = 'group-end';
-        const justifyClass = msg.is_current_user ? 'justify-end' : 'justify-start';
-        const flexDirection = msg.is_current_user ? 'flex-row-reverse' : '';
-        const reactionIconClass = msg.current_user_reacted ? 'text-red-500' : '';
-        const reactionDivHidden = msg.reactions_count > 0 ? '' : 'hidden';
-        return `
-            <div id="message-${msg.id}" class="w-full flex ${justifyClass}">
-                <div ondblclick="likeMessage(${msg.id})" class="flex items-end gap-1.5 max-w-[90%] group relative ${flexDirection} cursor-pointer">
-                    <div class="w-6 h-6 flex-shrink-0">
-                        ${showAvatar ? `<img src="${msg.user.avatar_url}" class="w-full h-full object-cover rounded-full" alt="Аватар">` : ''}
-                    </div>
-                    <div class="flex flex-col w-full ${msg.is_current_user ? 'items-end' : 'items-start'}">
-                        ${(showAvatar && !msg.is_current_user) ? `<span class="text-xs text-gray-500 ml-2 mb-0.5">${msg.user.name}</span>` : ''}
 
-                        ${msg.image_url ? `
-                            <div class="rounded-xl overflow-hidden shadow-md" onclick="openLightbox('${msg.image_url}')">
-                                <img src="${msg.image_url}" alt="Изображение в чате" class="max-w-xs max-h-64 object-cover">
-                            </div>
-                        ` : `
-                            <div class="chat-bubble text-sm leading-relaxed ${msg.is_current_user ? 'chat-bubble-me' : 'chat-bubble-other'} ${groupClass}">
-                                ${msg.text}
-                            </div>
-                        `}
+/* -------- лента: фильтры и поиск -------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const feed = document.getElementById('feed');
+  const tabs = document.querySelectorAll('.tab-btn');
+  const search = document.getElementById('feed-search');
 
-                        <div class="reaction-display mt-1 mr-2 self-end ${reactionDivHidden}">
-                            <div class="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs text-gray-600 flex items-center">
-                                <span class="reaction-icon ${reactionIconClass}">👍</span>
-                                <span class="reaction-count ml-0.5">${msg.reactions_count}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    function fetchAndUpdateMessages() {
-        fetch(`/api/groups/${groupId}/messages`)
-        .then(response => response.json())
-        .then(messages => {
-            messagesContainer.innerHTML = '';
-            if (messages.length === 0) {
-                messagesContainer.innerHTML = '<p class="text-gray-500 text-center italic text-xs m-auto">Сообщений пока нет.</p>';
-            } else {
-                let lastMessage = null;
-                messages.forEach(msg => {
-                    messagesContainer.innerHTML += renderMessage(msg, lastMessage);
-                    lastMessage = msg;
-                });
-            }
-        });
-    }
-    if (chatForm) {
-        chatForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(chatForm);
-            const textInput = chatForm.querySelector('textarea');
-            const fileInput = chatForm.querySelector('input[type="file"]');
-            const fileNameSpan = document.getElementById('file-name-widget');
-            if (!textInput.value.trim() && !fileInput.value) {
-                return;
-            }
-            fetch(chatForm.action, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const placeholder = document.getElementById('chat-placeholder');
-                    if(placeholder) placeholder.remove();
-                    messagesContainer.innerHTML += renderMessage(data.message, null);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    textInput.value = '';
-                    fileInput.value = '';
-                    fileNameSpan.textContent = '';
-                } else {
-                    alert(data.error || 'Не удалось отправить сообщение');
-                }
-            });
-        });
-    }
-    const chatToggleButton = document.getElementById('chat-toggle-button');
-    const chatWidgetContainer = document.getElementById('chat-widget-container');
-    const chatWidgetCloseButton = document.getElementById('chat-widget-close-button');
-    const toggleChatWidget = () => {
-        const isHidden = chatWidgetContainer.classList.contains('hidden');
-        if (isHidden) {
-            chatWidgetContainer.classList.remove('hidden');
-            chatToggleButton.classList.add('hidden');
-            setTimeout(() => chatWidgetContainer.classList.remove('opacity-0', 'scale-95'), 10);
-            fetchAndUpdateMessages();
-            pollingInterval = setInterval(fetchAndUpdateMessages, 5000);
-            setTimeout(() => messagesContainer.scrollTop = messagesContainer.scrollHeight, 200);
-        } else {
-            chatWidgetContainer.classList.add('opacity-0', 'scale-95');
-            setTimeout(() => {
-                chatWidgetContainer.classList.add('hidden');
-                chatToggleButton.classList.remove('hidden');
-            }, 300);
-            clearInterval(pollingInterval);
-        }
-    };
-    if (chatToggleButton) chatToggleButton.addEventListener('click', toggleChatWidget);
-    if (chatWidgetCloseButton) chatWidgetCloseButton.addEventListener('click', toggleChatWidget);
-    const imageUploadWidget = document.getElementById('image-upload-widget');
-    if(imageUploadWidget) {
-        imageUploadWidget.addEventListener('change', function() {
-            const fileName = this.files[0] ? this.files[0].name : '';
-            document.getElementById('file-name-widget').textContent = `Выбран файл: ${fileName}`;
-        });
-    }
-    const lightbox = document.getElementById('image-lightbox');
-    const lightboxImage = document.getElementById('lightbox-image');
-    window.openLightbox = (imageUrl) => {
-        if (lightbox && lightboxImage) {
-            lightboxImage.src = imageUrl;
-            lightbox.classList.add('visible');
-        }
-    }
-    window.closeLightbox = () => {
-        if (lightbox) {
-            lightbox.classList.remove('visible');
-            lightboxImage.src = '';
-        }
-    }
-    if(lightbox) {
-        lightbox.addEventListener('click', (event) => {
-            if(event.target === lightbox) closeLightbox();
-        });
-    }
-    document.addEventListener('keydown', function(e) {
-        if (e.key === "Escape") {
-            if (lightbox && lightbox.classList.contains('visible')) closeLightbox();
-            else if (chatWidgetContainer && !chatWidgetContainer.classList.contains('hidden')) toggleChatWidget();
-        }
+  function applyFilter() {
+    const active = document.querySelector('.tab-btn.bg-white')?.dataset.filter || 'all';
+    const q = (search?.value || '').trim().toLowerCase();
+
+    feed?.querySelectorAll('.feed-item').forEach(card => {
+      const type = card.dataset.type;
+      const hay = (card.dataset.title || '') + ' ' + (card.dataset.desc || '');
+      const okType = (active === 'all') || (type === active);
+      const okSearch = !q || hay.includes(q);
+      card.style.display = (okType && okSearch) ? '' : 'none';
     });
+  }
+
+  tabs.forEach(b => {
+    b.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('bg-white','shadow-sm','text-gray-700','font-medium'));
+      b.classList.add('bg-white','shadow-sm','text-gray-700','font-medium');
+      applyFilter();
+    });
+  });
+  search?.addEventListener('input', applyFilter);
+  applyFilter();
+});
+
+/* -------- чат -------- */
+document.addEventListener('DOMContentLoaded', function() {
+  const groupId = {{ group.id }};
+  let polling = null;
+  const messagesEl = document.getElementById('chat-messages-container');
+  const chatForm = document.getElementById('chat-form');
+
+  function renderMessage(msg, last) {
+    const changeUser = !last || last.user.name !== msg.user.name || last.is_current_user !== msg.is_current_user;
+    const showAvatar = changeUser;
+    const justify = msg.is_current_user ? 'justify-end' : 'justify-start';
+    const rowDir = msg.is_current_user ? 'flex-row-reverse' : '';
+    const iconLiked = msg.current_user_reacted ? 'text-red-500' : '';
+    const reactionHidden = msg.reactions_count > 0 ? '' : 'hidden';
+
+    return `
+      <div id="message-${msg.id}" class="w-full flex ${justify}">
+        <div ondblclick="likeMessage(${msg.id})" class="flex items-end gap-1.5 max-w-[90%] group relative ${rowDir}">
+          <div class="w-6 h-6 flex-shrink-0">
+            ${showAvatar ? `<img src="${msg.user.avatar_url}" class="w-full h-full rounded-full object-cover">` : ''}
+          </div>
+          <div class="flex flex-col ${msg.is_current_user ? 'items-end' : 'items-start'}">
+            ${(showAvatar && !msg.is_current_user) ? `<span class="text-[11px] text-gray-500 ml-2 mb-0.5">${msg.user.name}</span>` : ''}
+
+            ${msg.image_url ? `
+              <div class="rounded-xl overflow-hidden shadow-md cursor-zoom-in" onclick="openLightbox('${msg.image_url}')">
+                <img src="${msg.image_url}" class="max-w-xs max-h-64 object-cover">
+              </div>
+            ` : `
+              <div class="chat-bubble ${msg.is_current_user ? 'chat-bubble-me' : 'chat-bubble-other'}">
+                ${msg.text}
+              </div>
+            `}
+
+            <div class="reaction-display mt-1 self-end ${reactionHidden}">
+              <div class="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs text-gray-600 flex items-center">
+                <span class="reaction-icon ${iconLiked}">👍</span>
+                <span class="reaction-count ml-0.5">${msg.reactions_count}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function refreshMessages() {
+    fetch(`/api/groups/${groupId}/messages`)
+      .then(r => r.json())
+      .then(list => {
+        messagesEl.innerHTML = '';
+        if (!Array.isArray(list) || list.length === 0) {
+          messagesEl.innerHTML = '<p class="text-gray-500 text-center italic text-xs m-auto">Сообщений пока нет.</p>';
+          return;
+        }
+        let last = null;
+        list.forEach(m => {
+          messagesEl.insertAdjacentHTML('beforeend', renderMessage(m, last));
+          last = m;
+        });
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
+  }
+
+  if (chatForm) {
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(chatForm);
+      const textEl = chatForm.querySelector('textarea');
+      const fileEl = chatForm.querySelector('input[type="file"]');
+      const fileNameSpan = document.getElementById('file-name-widget');
+
+      if (!textEl.value.trim() && !fileEl.value) return;
+
+      fetch(chatForm.action, { method:'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+        .then(r => r.json())
+        .then(d => {
+          if (!d.success) return alert(d.error || 'Не удалось отправить сообщение');
+          const ph = document.getElementById('chat-placeholder'); if (ph) ph.remove();
+          messagesEl.insertAdjacentHTML('beforeend', renderMessage(d.message, null));
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+          textEl.value=''; fileEl.value=''; if(fileNameSpan) fileNameSpan.textContent='';
+        });
+    });
+  }
+
+  const upload = document.getElementById('image-upload-widget');
+  if (upload) upload.addEventListener('change', function() {
+    const s = document.getElementById('file-name-widget');
+    if (s) s.textContent = this.files[0] ? `Выбран файл: ${this.files[0].name}` : '';
+  });
+
+  // open/close widget
+  const btnOpen = document.getElementById('chat-toggle-button');
+  const box = document.getElementById('chat-widget-container');
+  const btnClose = document.getElementById('chat-widget-close-button');
+
+  function toggleChat() {
+    const hidden = box.classList.contains('hidden');
+    if (hidden) {
+      box.classList.remove('hidden'); btnOpen.classList.add('hidden');
+      setTimeout(() => { box.classList.remove('opacity-0','scale-95'); }, 10);
+      refreshMessages(); polling = setInterval(refreshMessages, 5000);
+      setTimeout(() => { messagesEl.scrollTop = messagesEl.scrollHeight; }, 150);
+    } else {
+      box.classList.add('opacity-0','scale-95');
+      setTimeout(() => { box.classList.add('hidden'); btnOpen.classList.remove('hidden'); }, 220);
+      if (polling) clearInterval(polling);
+    }
+  }
+
+  btnOpen?.addEventListener('click', toggleChat);
+  btnClose?.addEventListener('click', toggleChat);
+
+  // Lightbox
+  const lightbox = document.getElementById('image-lightbox');
+  const lightboxImg = document.getElementById('lightbox-image');
+  window.openLightbox = (src) => { if(!lightbox || !lightboxImg) return; lightboxImg.src = src; lightbox.classList.add('visible'); }
+  window.closeLightbox = () => { if(!lightbox || !lightboxImg) return; lightbox.classList.remove('visible'); lightboxImg.src=''; }
+  lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) window.closeLightbox(); });
+
+  // Esc закрывает лайтбокс или чат
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (lightbox?.classList.contains('visible')) return window.closeLightbox();
+    if (!box?.classList.contains('hidden')) toggleChat();
+  });
 });
 </script>
-
 {% endblock %}

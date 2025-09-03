@@ -730,20 +730,45 @@ lockScroll(false);
                       <div class="bg-yellow-50 py-2 rounded-lg border border-yellow-200"><div class="text-xs text-yellow-800">Жиры</div><div class="font-bold">{{ diet.fat }} г</div></div>
                       <div class="bg-purple-50 py-2 rounded-lg border border-purple-200"><div class="text-xs text-purple-800">Углеводы</div><div class="font-bold">{{ diet.carbs }} г</div></div>
                   </div>
-                  {% for meal_name, meal_items in {
-                      '🍳 Завтрак': breakfast, '🍲 Обед': lunch, '🍝 Ужин': dinner, '🍎 Перекус': snack
-                  }.items() %}
-                  <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <div class="font-semibold text-slate-700 mb-2 text-sm">{{ meal_name }}</div>
-                    <ul class="space-y-1 text-sm text-slate-600">
-                    {% for itm in meal_items %}
-                      <li class="flex justify-between"><span>{{ itm.name }}</span><span class="text-xs text-slate-500">{{ itm.grams }}г, {{ itm.kcal }} ккал</span></li>
-                    {% else %}
-                       <li class="text-slate-400 text-xs">Нет блюд в этом приёме.</li>
-                    {% endfor %}
-                    </ul>
-                  </div>
-                  {% endfor %}
+                 {# универсальный источник: diet.meals, diet или список с meal_type #}
+{% set meals_src = (diet.meals if diet is defined and diet.meals is defined and diet.meals else diet) %}
+{% set order = [
+  ('breakfast', '🍳 Завтрак'),
+  ('lunch',     '🍲 Обед'),
+  ('dinner',    '🍝 Ужин'),
+  ('snack',     '🍎 Перекус')
+] %}
+
+{% for key, label in order %}
+  {# dict -> берём по ключу, list -> фильтруем по meal_type #}
+  {% if meals_src and meals_src.get is defined %}
+    {% set meal_items = meals_src.get(key, []) %}
+  {% else %}
+    {% set meal_items = (meals_src | selectattr('meal_type','equalto', key) | list) if meals_src else [] %}
+  {% endif %}
+
+  <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+    <div class="font-semibold text-slate-700 mb-2 text-sm">{{ label }}</div>
+    <ul class="space-y-1 text-sm text-slate-600">
+      {% if meal_items and meal_items|length %}
+        {% for itm in meal_items %}
+          {% set grams = (itm.grams if itm.grams is defined else (itm.weight_g if itm.weight_g is defined else none)) %}
+          {% set kcal  = (itm.kcal  if itm.kcal  is defined else (itm.calories if itm.calories is defined else none)) %}
+          <li class="flex justify-between">
+            <span>{{ itm.name }}</span>
+            <span class="text-xs text-slate-500">
+              {% if grams is not none %}{{ grams }}г{% if kcal is not none %}, {% endif %}{% endif %}
+              {% if kcal  is not none %}{{ kcal }} ккал{% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      {% else %}
+        <li class="text-slate-400 text-xs">Нет блюд в этом приёме.</li>
+      {% endif %}
+    </ul>
+  </div>
+{% endfor %}
+
               </a>
               {% endif %}
           </div>
