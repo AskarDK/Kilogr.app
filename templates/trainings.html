@@ -170,10 +170,17 @@
       </div>
 
       <div>
-        <label class="block text-sm mb-1">Ссылка на занятие</label>
-        <input id="fLink" type="url" placeholder="https://zoom.us/j/..., https://t.me/..." class="w-full border rounded-xl px-3 py-2 bg-white dark:bg-slate-900/60" />
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">В расписании видны: имя тренера, время и название, остальное — в деталях.</p>
-      </div>
+  <label class="block text-sm mb-1">Название тренировки</label>
+  <input id="fTitle" type="text" placeholder="Например: Функционал 45 мин"
+         class="w-full border rounded-xl px-3 py-2 bg-white dark:bg-slate-900/60" />
+</div>
+
+<div>
+  <label class="block text-sm mb-1">Ссылка на занятие</label>
+  <input id="fLink" type="url" placeholder="https://zoom.u..." class="w-full border rounded-xl px-3 py-2 bg-white dark:bg-slate-900/60" />
+  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">В превью видны: имя тренера, время и название, остальное — в деталях.</p>
+</div>
+
 
       <div id="formError" class="text-sm text-red-600 hidden"></div>
     </div>
@@ -287,10 +294,12 @@
 
     formError.classList.add('hidden'); formError.textContent = '';
     fDate.value = dateStr || '';
-    fStart.value = initial ? initial.start_time : '';
-    fEnd.value   = initial ? initial.end_time   : '';
-    fLink.value  = initial ? (initial.meeting_link || '') : '';
-    btnSave.disabled = false;
+fStart.value = initial ? initial.start_time : '';
+fEnd.value   = initial ? initial.end_time   : '';
+fLink.value  = initial ? (initial.meeting_link || '') : '';
+fTitle.value = initial ? (initial.title || '') : '';
+btnSave.disabled = false;
+
   }
   function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); editingId = null; }
 
@@ -301,11 +310,13 @@
 
   btnSave.addEventListener('click', async () => {
     const payload = {
-      date: fDate.value,
-      start_time: fStart.value,
-      end_time: fEnd.value,
-      meeting_link: fLink.value.trim()
-    };
+  date: fDate.value,
+  start_time: fStart.value,
+  end_time: fEnd.value,
+  meeting_link: fLink.value.trim(),
+  title: (fTitle.value || '').trim()
+};
+
     const err = [];
     if(!payload.date) err.push('Укажите дату');
     if(!payload.start_time) err.push('Укажите время начала');

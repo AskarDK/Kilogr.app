@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, date, timedelta, time as time_cls
+from datetime import datetime, date, timedelta, time as dt_time
 from urllib.parse import urlparse
 import base64
 import json
@@ -115,6 +115,11 @@ class User(db.Model):
     password = db.Column(db.String(128), nullable=False)
     name = db.Column(db.String(50), nullable=False)
     date_of_birth = db.Column(db.Date)
+    renewal_reminder_last_shown_on = db.Column(db.Date)  # когда последний раз показали модалку продления
+    renewal_telegram_sent = db.Column(db.Boolean, default=False)  # телеграм-пинг за 5 дней отправлен
+    telegram_notify_enabled = db.Column(db.Boolean, default=True)  # общий рубильник TG-уведомлений
+    notify_trainings = db.Column(db.Boolean, default=True)  # напоминания по тренировкам (за час и "старт")
+    notify_subscription = db.Column(db.Boolean, default=True)  # напоминалка о продлении
 
     # --- НАЧАЛО ИЗМЕНЕНИЙ: Метрики состава тела удалены из этой таблицы ---
     # --- ДИНАМИЧЕСКИЕ СВОЙСТВА для получения данных из последней записи BodyAnalysis ---
@@ -416,7 +421,7 @@ class Training(db.Model):
     def to_dict(self, me_id=None):
         mine = (me_id is not None and self.trainer_id == me_id)
         now = datetime.now()
-        start_dt = datetime.combine(self.date, self.start_time)
+        start_dt = datetime.combine(date.today().replace(day=1), dt_time.min)
         end_dt = datetime.combine(self.date, self.end_time)
         is_past = now >= end_dt
         link_visible_at = (start_dt - timedelta(minutes=10))
@@ -460,6 +465,7 @@ class TrainingSignup(db.Model):
     training_id = db.Column(db.Integer, db.ForeignKey('trainings.id', ondelete="CASCADE"), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False, index=True)
     notified_1h = db.Column(db.Boolean, default=False)  # телеграм-уведомление за 1ч отправлено
+    notified_start = db.Column(db.Boolean, default=False)  # уведомление в момент старта отправлено
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
@@ -501,6 +507,7 @@ def _notification_worker():
                 now = datetime.now()
                 target = now + timedelta(hours=1)
 
+                # 1) Напоминания за 1 час (как было)
                 trainings = Training.query.filter(
                     Training.date == target.date(),
                     db.extract('hour', Training.start_time) == target.hour,
@@ -510,16 +517,15 @@ def _notification_worker():
                 for t in trainings:
                     rows = TrainingSignup.query.filter_by(training_id=t.id, notified_1h=False).all()
                     for s in rows:
-                        # используем session.get — он уже есть в app context
                         u = db.session.get(User, s.user_id)
-                        if not u or not getattr(u, "telegram_chat_id", None):
+                        if (not u or not getattr(u, "telegram_chat_id", None)
+                                or not getattr(u, "telegram_notify_enabled", True)
+                                or not getattr(u, "notify_trainings", True)):
                             s.notified_1h = True
                             continue
 
                         when = t.start_time.strftime("%H:%M")
                         date_s = t.date.strftime("%d.%m.%Y")
-
-                        # Дружелюбный текст с эмодзи
                         text = (
                             f"⏰ Напоминание!\n"
                             f"Через 1 час — онлайн-тренировка «{t.title or 'Онлайн-тренировка'}» с "
@@ -528,16 +534,70 @@ def _notification_worker():
                             f"🔗 Ссылка появится за 10 минут до начала в вашем расписании.\n"
                             f"🆔 ID занятия: {t.id}"
                         )
-
                         if _send_telegram(u.telegram_chat_id, text):
                             s.notified_1h = True
 
+                # 2) НОВОЕ: рассылка в момент начала — со ссылкой на участие
+                startings = Training.query.filter(
+                    Training.date == now.date(),
+                    db.extract('hour', Training.start_time) == now.hour,
+                    db.extract('minute', Training.start_time) == now.minute
+                ).all()
+
+                for t in startings:
+                    rows = TrainingSignup.query.filter_by(training_id=t.id).all()
+                    for s in rows:
+                        # пропускаем, если уже отмечали старт
+                        if getattr(s, "notified_start", False):
+                            continue
+                        u = db.session.get(User, s.user_id)
+                        # даже если у пользователя нет чата — помечаем, чтобы не долбить каждую минуту
+                        if (not u or not getattr(u, "telegram_chat_id", None)
+                                or not getattr(u, "telegram_notify_enabled", True)
+                                or not getattr(u, "notify_trainings", True)):
+                            s.notified_start = True
+                            continue
+
+                        when = t.start_time.strftime("%H:%M")
+                        date_s = t.date.strftime("%d.%m.%Y")
+                        text = (
+                            f"🏁 Старт!\n"
+                            f"Тренировка «{t.title or 'Онлайн-тренировка'}» началась.\n"
+                            f"👤 Тренер: {(t.trainer.name if t.trainer and getattr(t.trainer, 'name', None) else 'тренер')}\n"
+                            f"📅 {date_s}  •  🕒 {when}\n"
+                            f"🔗 Присоединиться: {t.meeting_link}\n"
+                            f"🆔 ID занятия: {t.id}"
+                        )
+                        if _send_telegram(u.telegram_chat_id, text):
+                            s.notified_start = True
+
+                users = User.query.all()
+                for u in users:
+                    sub = getattr(u, "subscription", None)
+                    if not sub or sub.status != 'active' or not sub.end_date:
+                        continue
+                    days_left = (sub.end_date - now_d).days
+                    if days_left == 5 and not u.renewal_telegram_sent and getattr(u, "telegram_chat_id", None):
+                        try:
+                            # ссылка на продление
+                            base = os.getenv("APP_BASE_URL", "").rstrip("/")
+                            purchase_path = url_for("purchase_page") if app and app.app_context else "/purchase"
+                            link = f"{base}{purchase_path}" if base else purchase_path
+                            # текст
+                            txt = (
+                                "⏳ Подписка заканчивается через 5 дней.\n"
+                                "Не теряйте доступ к тренировкам и ИИ-диетам — продлите сейчас.\n"
+                                f"👉 {link}"
+                            )
+                            if _send_telegram(u.telegram_chat_id, txt):
+                                u.renewal_telegram_sent = True
+                        except Exception:
+                            pass
+
                 db.session.commit()
-            except Exception as e:
-                # при любой ошибке корректно откатываем сессию
+            except Exception:
                 db.session.rollback()
             finally:
-                # на всякий случай очищаем scoped-сессию и ждём минуту
                 db.session.remove()
                 time_mod.sleep(60)
 
@@ -581,6 +641,8 @@ class BodyAnalysis(db.Model):
 
 with app.app_context():
     db.create_all()
+    # Мини-миграции для новых полей в user
+
 
 
 def calculate_age(born):
@@ -806,6 +868,86 @@ def utility_processor():
 def inject_user():
     return {'current_user': get_current_user()}
 
+# NEW: глобальные флаги для помощи новичкам и наличия анализа тела
+@app.context_processor
+def inject_help_flags():
+    u = get_current_user()
+
+    # Есть ли уже анализы тела
+    has_body_analysis = False
+    if u:
+        try:
+            has_body_analysis = db.session.query(BodyAnalysis.id).filter_by(user_id=u.id).first() is not None
+        except Exception:
+            has_body_analysis = False
+
+    # Новичок: либо нет анализов, либо профиль «моложе 7 дней».
+    # Безопасно берём первую доступную дату: created_at / created / registered_at / updated_at.
+    is_newbie = False
+    if u:
+        joined = (
+            getattr(u, 'created_at', None)
+            or getattr(u, 'created', None)
+            or getattr(u, 'registered_at', None)
+            or getattr(u, 'updated_at', None)
+        )
+        try:
+            if joined:
+                # поддержка date и datetime
+                if isinstance(joined, date) and not isinstance(joined, datetime):
+                    is_newbie = (date.today() - joined).days < 7
+                else:
+                    is_newbie = (datetime.utcnow().date() - joined.date()).days < 7
+        except Exception:
+            # в крайнем случае ориентируемся только на отсутствие анализов
+            is_newbie = False
+
+    # если анализов нет — всё равно показываем кнопку помощи
+    if not has_body_analysis:
+        is_newbie = True
+
+    return dict(show_help_button=is_newbie, has_body_analysis=has_body_analysis)
+
+def _month_deltas(user):
+    # Первый день месяца в виде datetime, чтобы сравнивать с BodyAnalysis.timestamp
+    start_dt = datetime.combine(date.today().replace(day=1), dt_time.min)
+
+    # Берём первый и последний анализ ТОЛЬКО за текущий месяц по timestamp
+    first = BodyAnalysis.query.filter(
+        BodyAnalysis.user_id == user.id,
+        BodyAnalysis.timestamp >= start_dt
+    ).order_by(BodyAnalysis.timestamp.asc()).first()
+
+    last = BodyAnalysis.query.filter(
+        BodyAnalysis.user_id == user.id,
+        BodyAnalysis.timestamp >= start_dt
+    ).order_by(BodyAnalysis.timestamp.desc()).first()
+
+    fat_delta = 0.0
+    muscle_delta = 0.0
+    if first and last and first.id != last.id:
+        try:
+            fat_delta = float((last.fat_mass or 0) - (first.fat_mass or 0))
+            muscle_delta = float((last.muscle_mass or 0) - (first.muscle_mass or 0))
+        except Exception:
+            pass
+    return {"fat_delta": fat_delta, "muscle_delta": muscle_delta}
+
+@app.context_processor
+def inject_renewal_reminder():
+    u = get_current_user()  # у тебя уже есть helper для текущего пользователя
+    show = False
+    summary = {"fat_delta": 0.0, "muscle_delta": 0.0}
+    days_left = None
+    if u and getattr(u, "subscription", None) and u.subscription.status == 'active' and u.subscription.end_date:
+        days_left = (u.subscription.end_date - date.today()).days
+        if days_left is not None and 0 < days_left <= 5:
+            # показываем 1 раз в день
+            last = u.renewal_reminder_last_shown_on
+            if last != date.today():
+                show = True
+        summary = _month_deltas(u)
+    return dict(renewal_reminder_due=show, monthly_summary=summary, subscription_days_left=days_left)
 
 # ------------------ ROUTES ------------------
 
@@ -820,6 +962,11 @@ def index():
 def index_alias():
     return redirect(url_for('index'))
 
+@app.route('/instructions')
+def instructions_page():
+    # Можно прокинуть ?section=scales чтобы автоскроллить к «весам»
+    section = request.args.get('section')
+    return render_template('instructions.html', scroll_to=section)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -3021,10 +3168,6 @@ def admin_grant_subscription(user_id):
 with app.app_context():
     db.create_all()
 
-
-# Удалите старый @app.route("/admin/user/<int:user_id>/subscribe")
-# И добавьте этот новый маршрут
-
 @app.route("/admin/user/<int:user_id>/manage_subscription", methods=["POST"])
 @admin_required
 def manage_subscription(user_id):
@@ -3308,18 +3451,10 @@ def deficit_history():
 
     return jsonify(history_data)
 
-
-@app.route('/purchase')
-@login_required
+@app.route("/purchase")
 def purchase_page():
-    """Отображает страницу выбора и покупки подписки."""
-    # Цены можно вынести в конфигурацию, но для простоты оставим здесь
-    subscription_plans = {
-        '1m': {'name': '1 месяц', 'price': 2990},
-        '6m': {'name': '6 месяцев', 'price': 14990},
-        '12m': {'name': '1 год', 'price': 24990},
-    }
-    return render_template('purchase.html', plans=subscription_plans)
+    bot_username = os.getenv("TELEGRAM_BOT_USERNAME", "DietaAIBot")
+    return render_template("purchase.html", bot_username=bot_username)
 
 
 @app.route('/api/kaspi/generate_qr', methods=['POST'])
@@ -3481,6 +3616,54 @@ def trainings_calendar_page():
         return redirect(url_for('login'))
     u = get_current_user()
     return render_template('trainings-calendar.html', me_id=(u.id if u else None))
+
+@app.post("/api/dismiss_renewal_reminder")
+@login_required
+def dismiss_renewal_reminder():
+    u = get_current_user()
+    if not u:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    u.renewal_reminder_last_shown_on = date.today()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+@app.get("/api/me/telegram/settings")
+@login_required
+def get_tg_settings():
+    u = get_current_user()
+    if not u:
+        return jsonify({"ok": False}), 401
+    return jsonify({
+        "ok": True,
+        "telegram_notify_enabled": bool(getattr(u, "telegram_notify_enabled", True)),
+        "notify_trainings":        bool(getattr(u, "notify_trainings", True)),
+        "notify_subscription":     bool(getattr(u, "notify_subscription", True)),
+    })
+
+@app.post("/api/me/telegram/settings")
+@login_required
+def set_tg_settings():
+    u = get_current_user()
+    if not u:
+        return jsonify({"ok": False}), 401
+    data = request.get_json(silent=True) or {}
+
+    def to_bool(v):
+        if isinstance(v, bool): return v
+        return str(v).lower() in ("1","true","yes","on")
+
+    for key in ("telegram_notify_enabled","notify_trainings","notify_subscription"):
+        if key in data:
+            setattr(u, key, to_bool(data[key]))
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+# app.py
+@app.route("/devices")
+def devices():
+    return render_template("devices.html")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

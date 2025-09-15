@@ -24,6 +24,112 @@
     </div>
 </div>
 
+<style>
+<style>
+  /* Эффект «как в примере» + сохраняем is-flipped */
+  .flip-card{ perspective:1200px; transition:transform .4s ease; }
+  .flip-card:hover{ transform:scale(1.03); }
+
+  .flip-card-inner{
+    transition: transform 1s ease;
+    transform-style: preserve-3d;
+    position: relative; width:100%; height:100%;
+  }
+  .flip-card.is-flipped .flip-card-inner{ transform: rotateY(180deg); }
+
+  .flip-card-front, .flip-card-back{
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    position:absolute; inset:0; padding:1.5rem; border-radius:1.25rem;
+    display:flex; flex-direction:column; justify-content:space-between;
+    overflow:hidden;
+    /* сочная тень как в примере */
+    box-shadow: 0 12px 25px rgba(0,0,0,.20);
+  }
+  .flip-card-back{ transform: rotateY(180deg); overflow-y:auto; }
+
+/* Стрелка в ВЕРХНЕМ ПРАВОМ углу, «смотрит» в угол (↗), жирная */
+.click-arrow{
+  position:absolute; top: .85rem; right: .85rem;
+  font-size: 1.4rem; font-weight: 800;
+  transform: rotate(-45deg); /* из → делаем ↗ */
+  color: rgba(255,255,255,.55);
+  text-shadow: 0 2px 6px rgba(0,0,0,.35);
+  user-select: none; pointer-events: none;
+  transition: transform .25s ease, color .25s ease, text-shadow .25s ease;
+}
+/* Подсветка при наведении на карту */
+.flip-card:hover .click-arrow{
+  transform: rotate(-45deg) translate(4px,-4px) scale(1.15);
+  color: #fff;
+  text-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+/* На обороте — тёмная стрелка */
+.flip-card-back .click-arrow{
+  color: #475569;            /* slate-600 */
+  text-shadow: none;
+}
+.flip-card:hover .flip-card-back .click-arrow{
+  color: #0f172a;            /* slate-900 */
+}
+
+</style>
+
+<style>
+    /* крупные карточки выбора пола */
+.selection-card-gender{
+  border: 2px solid var(--border-soft);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(120px 120px at 90% 10%, rgba(59,130,246,.06), transparent 60%),
+    linear-gradient(180deg, #fff, #f8fafc);
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease, background .3s ease;
+}
+.selection-card-gender:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(0,0,0,.08);
+  border-color: #cbd5e1; /* slate-300 */
+}
+.selection-card-gender.selected{
+  background:
+    radial-gradient(140px 140px at 90% 10%, rgba(59,130,246,.08), transparent 60%),
+    linear-gradient(180deg, #ffffff, #f0f9ff);
+}
+
+/* «телеграм»-анимация: подпрыгивание и всплеск при выборе */
+@keyframes tg-pop {
+  0%   { transform: scale(1) rotate(0deg); }
+  40%  { transform: scale(1.15) rotate(-6deg); }
+  70%  { transform: scale(0.97) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@keyframes burst {
+  0%   { transform: scale(0); opacity: 0; }
+  40%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* искорки */
+.selection-card-gender .burst{
+  position: absolute; width: 10px; height: 10px; border-radius: 9999px;
+  background: currentColor; opacity: 0; pointer-events: none;
+}
+.selection-card-gender .b1{ color:#60a5fa; /* blue-400 */ top:0; right:10px; }
+.selection-card-gender .b2{ color:#f472b6; /* pink-400 */ bottom:8px; right:0; }
+.selection-card-gender .b3{ color:#22c55e; /* green-500 */ top:18px; left:4px; }
+
+/* активируем анимации, когда карточка выбрана */
+.selection-card-gender.selected .icon-primary{
+  animation: tg-pop .5s ease-out both;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.15));
+}
+.selection-card-gender.selected .burst{
+  animation: burst .6s ease-out both;
+}
+.selection-card-gender.selected .b2{ animation-delay: .05s; }
+.selection-card-gender.selected .b3{ animation-delay: .1s; }
+
+</style>
+
 <script>
     const popupOverlay = document.getElementById('subscriptionPopupOverlay');
 
@@ -410,7 +516,9 @@ lockScroll(false);
         <div>
             <h3 class="font-bold text-xl">Добро пожаловать в экосистему Kilogr.app!</h3>
             <p class="mt-1 text-white/90">Получили свои умные весы и часы? Они помогут вам автоматически отслеживать прогресс и достигать целей еще быстрее.</p>
-            <a href="#" class="inline-block mt-3 text-sm font-semibold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors">Узнать больше о наших устройствах</a>
+<a href="{{ url_for('devices') }}" class="inline-block mt-3 text-sm font-semibold bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors">
+  Узнать больше о наших устройствах
+</a>
         </div>
     </div>
 </div>
@@ -445,21 +553,29 @@ lockScroll(false);
 
 <div class="lg:col-span-1 space-y-6">
 
-    <div class="card p-6">
+<div class="card p-6">
         <div class="relative text-center">
 
-            <div class="absolute top-0 right-0">
-                <button onclick="openTelegramModal()" title="Статус Telegram" class="p-2 rounded-full hover:bg-slate-100 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6
-                        {% if user.telegram_chat_id %}
-                            text-green-500 {% else %}
-                            text-slate-400 hover:text-slate-600 {% endif %}"
-                        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                      <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4" />
-                    </svg>
-                </button>
-            </div>
+  <div class="absolute top-0 right-0 z-10">
+    <button onclick="openTelegramModal()" title="Ста..." class="relative p-2 rounded-full hover:bg-slate-100 transition-colors" aria-label="Привязать Telegram">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6
+        {% if user.telegram_chat_id %}
+          text-green-500
+        {% else %}
+          text-slate-400 animate-pulse hover:text-slate-600
+        {% endif %}"
+        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+        <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4" />
+      </svg>
+
+      {% if not user.telegram_chat_id %}
+        <span class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-ping"></span>
+        <span class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white"></span>
+      {% endif %}
+    </button>
+  </div>
+
 
             {% if user.avatar %}
 <img loading="lazy" width="96" height="96"
@@ -485,12 +601,30 @@ lockScroll(false);
             <div class="flex justify-between items-center cursor-pointer" id="metrics-header">
               <h3 class="text-base font-bold text-slate-800">📊 Ключевые показатели</h3>
               <button class="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800">
-                <span id="metrics-toggle-text">Все данные</span>
-                <svg id="metrics-toggle-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 transition-transform duration-300 rotate-180">
-                  <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06 0L10 9.06l-3.71 3.73a.75.75 0 11-1.06-1.06l4.24-4.25a.75.75 0 011.06 0l4.24 4.25a.75.75 0 010 1.06z" clip-rule="evenodd" />
+                                <span id="metrics-toggle-text">Все данные</span>
+                <svg id="metrics-toggle-icon" xmlns="http://www....r" class="w-5 h-5 transition-transform duration-300 rotate-180">
+                  <path fill-rule="evenodd" d="M14.77 12.79a.75.... 0 011.06 0l4.24 4.25a.75.75 0 010 1.06z" clip-rule="evenodd" />
                 </svg>
               </button>
             </div>
+
+            {% if not latest_analysis %}
+            <!-- Подсказка для новых пользователей: как правильно измеряться -->
+            <div class="mt-4 p-3 rounded-xl border border-amber-200 bg-amber-50 flex items-start gap-3">
+              <div class="shrink-0 mt-0.5">
+                <i class="bi bi-lightbulb text-amber-600 text-lg"></i>
+              </div>
+              <div>
+                <div class="font-semibold text-amber-800">Ещё нет анализов тела</div>
+                <div class="text-sm text-amber-700">
+                  Начните с корректного взвешивания — это улучшит рекомендации.
+                  <a class="underline font-semibold hover:no-underline"
+                     href="{{ url_for('instructions_page') }}#scales">Как измерять?</a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
             <div id="metrics-icons-view" class="mt-4 grid grid-cols-3 gap-3 text-center">
               {% set key_metrics = [('weight', '⚖️', 'Вес'), ('muscle_mass', '💪', 'Мышцы'), ('fat_mass', '🧈', 'Жир')] %}
               {% for field, icon, label in key_metrics %}
@@ -791,16 +925,73 @@ lockScroll(false);
                         <input type="hidden" name="goal" id="goalInput">
                       </div>
                       <div>
-                        <label class="block text-sm font-medium mb-2 text-slate-700">Ваш пол</label>
-                        <div class="grid grid-cols-2 gap-3">
-                          {% for g in [{'label': 'Мужской', 'icon': '♂️', 'value': 'male'},{'label': 'Женский', 'icon': '♀️', 'value': 'female'}] %}
-                            <div class="selection-card text-center" data-group="gender" data-value="{{ g.value }}">
-                              <span class="text-xl mr-2">{{ g.icon }}</span><span class="font-semibold">{{ g.label }}</span>
-                            </div>
-                          {% endfor %}
-                        </div>
-                        <input type="hidden" name="gender" id="genderInput">
-                      </div>
+  <label class="block text-sm font-medium mb-2 text-slate-700">Ваш пол</label>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <!-- Мужской -->
+    <div
+      class="selection-card selection-card-gender group relative p-5 h-40 overflow-hidden cursor-pointer"
+      data-group="gender" data-value="male" role="button" aria-pressed="false"
+    >
+      <!-- свечение/подсветка -->
+      <div class="absolute inset-0 rounded-xl pointer-events-none ring-2 ring-transparent transition-all
+                  group-[.selected]:ring-blue-500 group-[.selected]:shadow-[0_12px_30px_rgba(59,130,246,.30)]"></div>
+
+      <div class="flex items-center justify-between h-full">
+        <div class="z-10">
+          <div class="text-xs uppercase tracking-wide text-slate-500">Пол</div>
+          <div class="text-xl font-extrabold text-slate-900">Мужской</div>
+          <div class="mt-2 text-xs text-slate-500">нажимайте — карточка живая</div>
+        </div>
+
+        <div class="relative w-24 h-24">
+          <!-- активный силуэт -->
+          <i class="bi bi-gender-male icon-primary absolute left-1 top-1 text-6xl text-blue-600
+                    transition-transform duration-300 ease-out"></i>
+          <!-- второй силуэт для композиции -->
+          <i class="bi bi-gender-female icon-secondary absolute -right-1 -bottom-1 text-5xl text-slate-300
+                    opacity-70 rotate-12"></i>
+
+          <!-- искорки -->
+          <span class="burst b1"></span>
+          <span class="burst b2"></span>
+          <span class="burst b3"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Женский -->
+    <div
+      class="selection-card selection-card-gender group relative p-5 h-40 overflow-hidden cursor-pointer"
+      data-group="gender" data-value="female" role="button" aria-pressed="false"
+    >
+      <div class="absolute inset-0 rounded-xl pointer-events-none ring-2 ring-transparent transition-all
+                  group-[.selected]:ring-pink-500 group-[.selected]:shadow-[0_12px_30px_rgba(236,72,153,.28)]"></div>
+
+      <div class="flex items-center justify-between h-full">
+        <div class="z-10">
+          <div class="text-xs uppercase tracking-wide text-slate-500">Пол</div>
+          <div class="text-xl font-extrabold text-slate-900">Женский</div>
+          <div class="mt-2 text-xs text-slate-500">нажимайте — карточка живая</div>
+        </div>
+
+        <div class="relative w-24 h-24">
+          <i class="bi bi-gender-female icon-primary absolute left-1 top-1 text-6xl text-pink-600
+                    transition-transform duration-300 ease-out"></i>
+          <i class="bi bi-gender-male icon-secondary absolute -right-1 -bottom-1 text-5xl text-slate-300
+                    -rotate-12 opacity-70"></i>
+
+          <span class="burst b1"></span>
+          <span class="burst b2"></span>
+          <span class="burst b3"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" name="gender" id="genderInput">
+</div>
+
                       <div>
                         <label class="block text-sm font-medium mb-2 text-slate-700">Предпочтения (не обязательно)</label>
                         <textarea name="preferences" rows="2" class="form-input" placeholder="Например: без рыбы, больше курицы"></textarea>
@@ -965,56 +1156,74 @@ lockScroll(false);
 
     <div>
         <h2 class="text-2xl font-bold text-slate-800 mb-4">Приёмы пищи</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {% for meal_name, key, gradient in [
-              ('Завтрак', 'breakfast', 'from-amber-400 to-orange-500'),
-              ('Обед',    'lunch',     'from-green-400 to-emerald-500'),
-              ('Ужин',    'dinner',    'from-blue-500 to-indigo-600'),
-              ('Перекус', 'snack',     'from-pink-400 to-rose-500')
-            ] %}
-              {% set item = meals.get(key, []) | first %}
+   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  {% for meal_name, key, gradient in [
+    ('Завтрак','breakfast','from-amber-400 to-orange-500'),
+    ('Обед','lunch','from-green-400 to-emerald-500'),
+    ('Ужин','dinner','from-blue-500 to-indigo-600'),
+    ('Перекус','snack','from-pink-400 to-rose-500')
+  ] %}
+    {% set item = meals.get(key, []) | first %}
 
-              <div class="flip-card" onclick="this.classList.toggle('is-flipped')">
-                <div class="flip-card-inner">
-                  <div class="flip-card-front">
-                    <div class="p-6 bg-gradient-to-br {{ gradient }} text-white">
-                      <div class="flex justify-between items-center">
-                          <h3 class="text-xl font-bold">{{ meal_name }}</h3>
-                          {% if item %}
-                            <span class="text-lg font-bold">{{ item.calories }} <span class="text-sm font-normal opacity-80">ккал</span></span>
-                          {% endif %}
-                      </div>
-                    </div>
-                    <div class="p-6 flex-grow flex flex-col justify-center items-center">
-                      {% if item %}
-                        <p class="text-lg font-semibold text-slate-800">{{ item.name or 'Название не указано' }}</p>
-                        <span class="text-xs text-slate-400 mt-4">(Нажмите, чтобы увидеть детали)</span>
-                      {% else %}
-                        <p class="text-slate-400">Нет данных</p>
-                      {% endif %}
-                    </div>
-                    <div class="p-4 border-t border-slate-200">
-                      <button onclick="event.stopPropagation(); openMealModal('{{ key }}','{{ meal_name }}')"
-                              class="btn w-full {% if item %}btn-secondary{% else %}btn-primary{% endif %}">
-                        ✏️ {% if item %}Изменить{% else %}Добавить{% endif %}
-                      </button>
-                    </div>
-                  </div>
-                  <div class="flip-card-back">
-                    {% if item %}
-                      <h4 class="font-bold text-lg mb-2">Вердикт AI</h4>
-                      <p class="text-sm text-center mb-4 bg-white/70 p-3 rounded-md">{{ item.verdict or 'Нет вердикта.' }}</p>
-                      <h4 class="font-bold text-lg mb-2">Анализ</h4>
-                      <p class="text-xs text-slate-600 text-center">{{ item.analysis or 'Нет анализа.' }}</p>
-                    {% else %}
-                        <p>Нажмите "Добавить", чтобы загрузить фото блюда или ввести данные вручную.</p>
-                    {% endif %}
-                  </div>
+    <div class="flip-card cursor-pointer" onclick="this.classList.toggle('is-flipped')">
+      <div class="flip-card-inner rounded-2xl">
+        <!-- FRONT -->
+        <div class="flip-card-front relative overflow-hidden">
+          <div class="p-6 bg-gradient-to-br {{ gradient }} text-white rounded-2xl h-full flex flex-col justify-between">
 
-                </div>
+            <div>
+              <div class="flex justify-between items-center">
+                <h3 class="text-2xl font-bold tracking-wide">{{ meal_name }}</h3>
+                {% if item %}
+                  <span class="text-lg font-bold">{{ item.calories }}
+                    <span class="text-sm font-normal opacity-80">ккал</span>
+                  </span>
+                {% endif %}
               </div>
-            {% endfor %}
+              <div class="mt-4">
+                {% if item %}
+                  <p class="text-lg font-semibold">{{ item.name or 'Название не указано' }}</p>
+                  <p class="text-xs text-white/80 mt-1">(Нажмите, чтобы увидеть детали)</p>
+                {% else %}
+                  <p class="text-white/80">Нет данных</p>
+                {% endif %}
+              </div>
+            </div>
+
+          </div>
+          <div class="p-4 bg-white/80 backdrop-blur border-t border-white/30">
+            <button onclick="event.stopPropagation(); openMealModal('{{ key }}','{{ meal_name }}')"
+                    class="btn w-full {% if item %}btn-secondary{% else %}btn-primary{% endif %}">
+              ✏️ {% if item %}Изменить{% else %}Добавить{% endif %}
+            </button>
+          </div>
         </div>
+
+        <!-- BACK -->
+        <div class="flip-card-back bg-white text-slate-800 relative">
+          {% if item %}
+            <div class="mb-3">
+              <h4 class="font-bold text-lg">Вердикт AI</h4>
+              <p class="text-sm text-center mt-2 bg-slate-50 border border-slate-200 p-3 rounded-md">
+                {{ item.verdict or 'Нет вердикта.' }}
+              </p>
+            </div>
+            <div>
+              <h4 class="font-bold text-lg mb-2">Анализ</h4>
+              <p class="text-xs text-slate-600 text-center">{{ item.analysis or 'Нет анализа.' }}</p>
+            </div>
+          {% else %}
+            <p>Нажмите "Добавить", чтобы загрузить фото блюда или ввести данные вручную.</p>
+          {% endif %}
+          <!-- стрелка и на обратной стороне -->
+          <div class="click-arrow">➜</div>
+        </div>
+
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
     </div>
 </div>
     </div>
@@ -1115,15 +1324,112 @@ lockScroll(false);
 </div>
 
 <div id="telegramModal" role="dialog" aria-modal="true" aria-labelledby="telegramModalTitle"
-     class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
-  <div class="card w-full max-w-md p-6 relative space-y-4 text-center animate-fade-in" onclick="event.stopPropagation()">
-    <button onclick="closeTelegramModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600">&times;</button>
-<h2 id="telegramModalTitle" class="text-xl font-bold">🔐 Привязка Telegram</h2>
-    <p class="text-slate-600 text-sm">Отправьте этот код в <a href="https://t.me/TestKilogrBot" target="_blank" class="font-semibold text-blue-600 underline">Telegram-бота</a>, чтобы связать аккаунты:</p>
-    <div class="bg-slate-100 rounded-lg px-4 py-3 text-2xl font-mono tracking-widest inline-block border border-slate-200" id="tgCodeDisplay">...</div>
-    <button onclick="copyCode()" class="btn btn-secondary w-full">📋 Скопировать код</button>
+     class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4"
+     data-bot="{{ bot_username|default('DietaAIBot') }}">
+  <div class="card w-full max-w-2xl p-6 sm:p-8 relative animate-fade-in bg-white" onclick="event.stopPropagation()">
+
+    <!-- Header: иконка + заголовок + крестик -->
+    <button onclick="closeTelegramModal()" class="absolute top-4 right-4 text-slate-400 text-2xl hover:text-slate-600 transition-colors" aria-label="Закрыть">&times;</button>
+    <div class="flex items-center gap-3 mb-4">
+      <div class="h-10 w-10 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600">✈️</div>
+      <div>
+        <h2 id="telegramModalTitle" class="text-lg sm:text-xl font-bold text-slate-900">Привязка Telegram</h2>
+        <p class="text-slate-600 text-sm">Свяжите аккаунт, чтобы получать уведомления и делиться данными мгновенно.</p>
+      </div>
+    </div>
+
+    <!-- Статус: компактно под заголовком -->
+    <div class="flex items-center gap-2 text-sm mb-5">
+      <span class="relative flex h-2.5 w-2.5">
+        <span class="absolute inline-flex h-full w-full rounded-full animate-ping bg-amber-400" id="tgStatusPing"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" id="tgStatusDot"></span>
+      </span>
+      <span id="tgStatusText" class="text-slate-600">Статус: не привязан · Ожидаем подтверждение…</span>
+      <span class="ml-auto text-xs text-slate-500">
+        Бот: <a id="tgBotLink" class="font-medium text-blue-600 hover:underline" target="_blank" rel="noopener">@<span id="tgBotName"></span></a>
+      </span>
+    </div>
+
+    <!-- Основной контент в 2 колонки -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      <!-- ЛЕВАЯ КОЛОНКА: шаги + код + диплинк -->
+      <div class="space-y-4">
+        <!-- Шаги (по вертикали) -->
+        <ol class="text-xs text-slate-500 space-y-2">
+          <li class="flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 font-semibold">1</span>
+            Откройте Telegram
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 font-semibold">2</span>
+            Перейдите к боту <span class="font-medium text-blue-600">@<span id="tgBotName"></span></span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 font-semibold">3</span>
+            Отправьте ему одноразовый код
+          </li>
+        </ol>
+
+        <!-- Код + копирование -->
+        <div class="space-y-3">
+          <div id="tgCodeDisplay" class="font-mono text-2xl tracking-wider select-all px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">...</div>
+          <div class="flex gap-3">
+            <button onclick="copyCode()" class="btn btn-secondary w-full">📋 Скопировать код</button>
+            <a id="tgDeepLink" class="btn btn-primary w-full text-center" target="_blank" rel="noopener">Автопривязка</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ПРАВАЯ КОЛОНКА: настройки уведомлений -->
+      <div class="rounded-xl border border-slate-200 p-4">
+        <h3 class="font-semibold text-slate-800 mb-3">Уведомления</h3>
+
+        <!-- Общий рубильник -->
+        <div class="flex items-center justify-between py-2">
+          <div class="text-sm">
+            <div class="font-medium text-slate-800">Получать в Telegram</div>
+            <div class="text-slate-500 text-xs">Отключает/включает все уведомления разом</div>
+          </div>
+          <button id="tgSwitchGlobal" role="switch" aria-checked="true" data-key="telegram_notify_enabled"
+                  class="w-12 h-7 rounded-full bg-emerald-500 relative transition">
+            <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
+          </button>
+        </div>
+
+        <hr class="my-3 border-slate-200">
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="text-sm">
+              <div class="font-medium text-slate-800">Тренировки</div>
+              <div class="text-slate-500 text-xs">Напоминание за 1 час и в момент старта</div>
+            </div>
+            <button id="tgSwitchTrainings" role="switch" aria-checked="true" data-key="notify_trainings"
+                    class="w-12 h-7 rounded-full bg-emerald-500 relative transition">
+              <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div class="text-sm">
+              <div class="font-medium text-slate-800">Продление подписки</div>
+              <div class="text-slate-500 text-xs">Напоминание за 5 дней до окончания</div>
+            </div>
+            <button id="tgSwitchSubscription" role="switch" aria-checked="true" data-key="notify_subscription"
+                    class="w-12 h-7 rounded-full bg-emerald-500 relative transition">
+              <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
+            </button>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-3">Изменения сохраняются автоматически.</p>
+      </div>
+    </div>
+
   </div>
 </div>
+
 
 <div id="editProfileModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4" onclick="closeEditProfileModal()">
   <div class="card w-full max-w-lg p-6 sm:p-8 relative animate-fade-in" onclick="event.stopPropagation()">
@@ -1369,30 +1675,144 @@ lockScroll(false);
     }
 
     // --- Логика для модального окна Telegram ---
-    function openTelegramModal() {
-        fetch('/generate_telegram_code')
-            .then(res => res.json())
-            .then(data => {
-                if (data.code) {
-                    document.getElementById('tgCodeDisplay').textContent = data.code;
-                    openModal('telegramModal');
+    let tgPollTimer = null;
 
-                } else { alert('Не удалось сгенерировать код.'); }
-            })
-            .catch(err => alert('Ошибка при генерации кода: ' + err.message));
+function openTelegramModal() {
+  fetch('/generate_telegram_code')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.code) { alert('Не удалось сгенерировать код.'); return; }
+
+      const modal = document.getElementById('telegramModal');
+      const bot = (modal?.dataset?.bot) || '';
+      const code = data.code;
+
+      // код
+      const codeEl = document.getElementById('tgCodeDisplay');
+      if (codeEl) codeEl.textContent = code;
+
+      // deep link в бота
+      const botNameEl = document.getElementById('tgBotName');
+      if (botNameEl) botNameEl.textContent = bot || '';
+      const botLinkEl = document.getElementById('tgBotLink');
+      if (botLinkEl && bot) botLinkEl.href = `https://t.me/${bot}`;
+      const deepLinkEl = document.getElementById('tgDeepLink');
+      if (deepLinkEl && bot) deepLinkEl.href = `https://t.me/${bot}?start=${encodeURIComponent(code)}`;
+
+      // статус
+      setTgStatusWaiting();
+
+      openModal('telegramModal');
+      startTgPolling();
+
+      // НОВОЕ: подгружаем настройки и вешаем обработчики
+      loadTgSettings();
+      bindTgSwitches();
+    })
+    .catch(err => alert('Ошибка при генерации кода: ' + err.message));
+}
+
+// --- НОВОЕ: UI переключателей
+function renderSwitch(btn, isOn) {
+  if (!btn) return;
+  const knob = btn.querySelector('.knob');
+  btn.classList.toggle('bg-emerald-500', !!isOn);
+  btn.classList.toggle('bg-slate-300', !isOn);
+  btn.setAttribute('aria-checked', isOn ? 'true' : 'false');
+  if (knob) knob.style.transform = isOn ? 'translateX(20px)' : 'translateX(0px)';
+}
+
+function bindTgSwitches() {
+  const switches = ['tgSwitchGlobal','tgSwitchTrainings','tgSwitchSubscription'];
+  switches.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', () => {
+      const key = el.dataset.key;
+      const isOn = el.getAttribute('aria-checked') !== 'true';
+      renderSwitch(el, isOn);
+      saveTgSettings({ [key]: isOn });
+    });
+  });
+}
+
+function loadTgSettings() {
+  fetch('/api/me/telegram/settings')
+    .then(r => r.json())
+    .then(j => {
+      if (!j.ok) return;
+      renderSwitch(document.getElementById('tgSwitchGlobal'),      j.telegram_notify_enabled);
+      renderSwitch(document.getElementById('tgSwitchTrainings'),   j.notify_trainings);
+      renderSwitch(document.getElementById('tgSwitchSubscription'),j.notify_subscription);
+    })
+    .catch(()=>{ /* no-op */ });
+}
+
+let _saveTimer=null;
+function saveTgSettings(patch) {
+  // лёгкий дебаунс, чтобы не спамить
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    fetch('/api/me/telegram/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(patch || {})
+    }).catch(()=>{});
+  }, 150);
+}
+
+
+function closeTelegramModal() {
+  closeModal('telegramModal');
+  stopTgPolling();
+}
+
+function copyCode() {
+  const code = document.getElementById('tgCodeDisplay').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    alert('Код скопирован в буфер обмена!');
+  });
+}
+
+// --- статус/поллинг ---
+function setTgStatusWaiting() {
+  const dot = document.getElementById('tgStatusDot');
+  const ping = document.getElementById('tgStatusPing');
+  const text = document.getElementById('tgStatusText');
+  if (dot) dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500';
+  if (ping) ping.className = 'absolute inline-flex h-full w-full rounded-full animate-ping bg-amber-400';
+  if (text) text.textContent = 'Статус: не привязан · Ожидаем подтверждение…';
+}
+function setTgStatusLinked() {
+  const dot = document.getElementById('tgStatusDot');
+  const ping = document.getElementById('tgStatusPing');
+  const text = document.getElementById('tgStatusText');
+  if (dot) dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500';
+  if (ping) ping.className = 'absolute inline-flex h-full w-full rounded-full bg-emerald-400'; // без анимации
+  if (text) text.textContent = 'Статус: привязан';
+}
+
+function startTgPolling() {
+  if (tgPollTimer) return;
+  tgPollTimer = setInterval(checkTgStatus, 2000);
+}
+function stopTgPolling() {
+  if (!tgPollTimer) return;
+  clearInterval(tgPollTimer);
+  tgPollTimer = null;
+}
+async function checkTgStatus() {
+  try {
+    const r = await fetch('/api/me/telegram/status', { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && j.linked) {
+      setTgStatusLinked();
+      stopTgPolling();
     }
+  } catch (_) { /* no-op */ }
+}
 
-    function closeTelegramModal() {
-        closeModal('telegramModal');
-
-    }
-
-    function copyCode() {
-        const code = document.getElementById('tgCodeDisplay').textContent;
-        navigator.clipboard.writeText(code).then(() => {
-            alert('Код скопирован в буфер обмена!');
-        });
-    }
 
     // --- Вспомогательные функции и обработчики событий ---
     document.addEventListener('DOMContentLoaded', function() {
@@ -1693,4 +2113,24 @@ function closeModal(id) {
 }
 
 </script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // ДО: у тебя уже есть универсальный обработчик selection-card.
+    // ДОПОЛНЕНИЕ: для группы gender — перезапуск анимации и aria-pressed
+    document.querySelectorAll('.selection-card-gender').forEach(card => {
+      card.addEventListener('click', () => {
+        // aria
+        document.querySelectorAll('.selection-card-gender').forEach(c => c.setAttribute('aria-pressed','false'));
+        card.setAttribute('aria-pressed','true');
+
+        // перезапуск анимации (пересоздаём classflow)
+        card.classList.remove('selected');
+        // короткий reflow
+        void card.offsetWidth;
+        card.classList.add('selected');
+      });
+    });
+  });
+</script>
+
 {% endblock %}

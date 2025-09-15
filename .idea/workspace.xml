@@ -6,12 +6,31 @@
   <component name="ChangeListManager">
     <list default="true" id="3fd51ef2-c522-4b09-b8bb-159666be30fe" name="Changes" comment="">
       <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/templates/devices.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/templates/instructions.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/group_detail.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/group_detail.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/login.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/login.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/instance/35healthclubs.db" beforeDir="false" afterPath="$PROJECT_DIR$/instance/35healthclubs.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/2025-07-24_092428.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/29e63124-68e8-40d6-836c-c7c6a26ca79e.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/IMG_1655.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/IMG_3089.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/IMG_7373.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/IMG_7521.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/uploads/photo_2025-07-19_20-00-19.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/base.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/manual_activity.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/manual_activity.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/profile.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/profile.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/purchase.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/purchase.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/trainings.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/trainings.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/2025-07-24_092428.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/29e63124-68e8-40d6-836c-c7c6a26ca79e.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/IMG_1655.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/IMG_3089.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/IMG_7373.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/IMG_7521.jpeg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/meal.jpg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/uploads/photo_2025-07-19_20-00-19.jpg" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
