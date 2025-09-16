@@ -2313,34 +2313,65 @@ def admin_delete_user(user_id):
         flash("Пользователь не найден.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    if user.email == ADMIN_EMAIL:
-        flash("Вы не можете удалить аккаунт администратора.", "error")
-        return redirect(url_for("admin_dashboard"))
-
     try:
-        # Cascade delete should handle related records (meals, activities, etc.)
-        # Ensure your model relationships have `cascade='all, delete-orphan'` if you want related data to be deleted.
-        # Otherwise, you would manually delete them here:
-        # MealLog.query.filter_by(user_id=user.id).delete()
-        # Activity.query.filter_by(user_id=user.id).delete()
-        # BodyAnalysis.query.filter_by(user_id=user.id).delete()
-        # Diet.query.filter_by(user_id=user.id).delete()
-        # GroupMember.query.filter_by(user_id=user.id).delete()
-        # GroupTask.query.filter_by(trainer_id=user.id).delete() # if they were trainers
-        # GroupMessage.query.filter_by(user_id=user.id).delete()
-        # MessageReaction.query.filter_by(user_id=user.id).delete()
+        # === 0) Если у пользователя есть собственная группа — чистим всё, что к ней привязано
+        if getattr(user, "own_group", None):
+            gid = user.own_group.id
 
-        # If user owns a group, delete the group first or reassign
-        if user.own_group:
-            # Option 1: Delete the group
+            # реакции к сообщениям группы
+            msg_ids = [row[0] for row in db.session.query(GroupMessage.id).filter_by(group_id=gid).all()]
+            if msg_ids:
+                MessageReaction.query.filter(MessageReaction.message_id.in_(msg_ids))\
+                                     .delete(synchronize_session=False)
+            # сообщения группы
+            GroupMessage.query.filter_by(group_id=gid).delete(synchronize_session=False)
+            # задачи/объявления группы
+            GroupTask.query.filter_by(group_id=gid).delete(synchronize_session=False)
+            # участники группы
+            GroupMember.query.filter_by(group_id=gid).delete(synchronize_session=False)
+            # сама группа
             db.session.delete(user.own_group)
-            # Option 2: Reassign the group to admin (if desired)
-            # user.own_group.trainer_id = <ADMIN_USER_ID>
-            # flash("Группа, принадлежащая пользователю, была переназначена администратору (или удалена).", "info")
 
+        # === 1) Членства пользователя в чужих группах
+        GroupMember.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 2) Сообщения пользователя и реакции на них
+        user_msg_ids = [row[0] for row in db.session.query(GroupMessage.id).filter_by(user_id=user.id).all()]
+        if user_msg_ids:
+            MessageReaction.query.filter(MessageReaction.message_id.in_(user_msg_ids))\
+                                 .delete(synchronize_session=False)
+        GroupMessage.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 3) Реакции, поставленные пользователем
+        MessageReaction.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 4) Тренировки, где он тренер, и записи на них
+        trainer_tids = [row[0] for row in db.session.query(Training.id).filter_by(trainer_id=user.id).all()]
+        if trainer_tids:
+            TrainingSignup.query.filter(TrainingSignup.training_id.in_(trainer_tids))\
+                                .delete(synchronize_session=False)
+            Training.query.filter(Training.id.in_(trainer_tids)).delete(synchronize_session=False)
+
+        # === 5) Записи пользователя на тренировки
+        TrainingSignup.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 6) Пищевые логи / активность / анализы / диеты / логи напоминаний
+        MealReminderLog.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        MealLog.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        Activity.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        BodyAnalysis.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        Diet.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 7) Подписки / заказы / настройки
+        Subscription.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        Order.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+        UserSettings.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+        # === 8) Наконец, сам пользователь
         db.session.delete(user)
         db.session.commit()
         flash(f"Пользователь '{user.name}' и все связанные данные удалены.", "success")
+
     except Exception as e:
         db.session.rollback()
         flash(f"Ошибка при удалении пользователя: {e}", "error")
