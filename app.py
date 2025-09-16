@@ -9,7 +9,6 @@ import uuid  # Добавлено для генерации уникальных
 import time  # Добавлено для симуляции
 from flask import Flask, render_template, request, redirect, session, jsonify, url_for, flash, abort, \
     send_from_directory
-from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 from openai import OpenAI
@@ -23,7 +22,9 @@ from sqlalchemy import func
 from functools import wraps
 from PIL import Image  # Import Pillow
 from sqlalchemy import text # Убедитесь, что text импортирован из sqlalchemy
-
+from meal_reminders import start_meal_scheduler
+from flask import Blueprint, request, jsonify
+from flask_login import current_user
 
 load_dotenv()
 
@@ -33,6 +34,22 @@ app.jinja_env.globals.update(getattr=getattr)
 
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Config DB — задаём ДО init_app
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "sqlite:///35healthclubs.db")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+from extensions import db
+db.init_app(app)
+
+from models import (
+    User, Subscription, Order, Group, GroupMember, GroupMessage, MessageReaction,
+    GroupTask, MealLog, Activity, Diet, Training, TrainingSignup, BodyAnalysis,
+    UserSettings, MealReminderLog
+)
+
+with app.app_context():
+    db.create_all()
 
 # --- Image Resizing Configuration ---
 CHAT_IMAGE_MAX_SIZE = (200, 200)  # Max width and height for chat images
@@ -92,385 +109,18 @@ def admin_required(f):
     return decorated_function
 
 
-# Config DB
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///35healthclubs.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_API_URL   = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
+# важно: чтобы meal_reminders видел токен/базовый урл
+app.config["TELEGRAM_BOT_TOKEN"] = TELEGRAM_BOT_TOKEN
+app.config["PUBLIC_BASE_URL"]    = os.getenv("APP_BASE_URL", "").rstrip("/")
 
-# ------------------ MODELS ------------------
-
-class User(db.Model):
-    @property
-    def has_subscription(self):
-        return self.is_trainer or (self.subscription and self.subscription.is_active)
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(128), nullable=False)
-    name = db.Column(db.String(50), nullable=False)
-    date_of_birth = db.Column(db.Date)
-    renewal_reminder_last_shown_on = db.Column(db.Date)  # когда последний раз показали модалку продления
-    renewal_telegram_sent = db.Column(db.Boolean, default=False)  # телеграм-пинг за 5 дней отправлен
-    telegram_notify_enabled = db.Column(db.Boolean, default=True)  # общий рубильник TG-уведомлений
-    notify_trainings = db.Column(db.Boolean, default=True)  # напоминания по тренировкам (за час и "старт")
-    notify_subscription = db.Column(db.Boolean, default=True)  # напоминалка о продлении
-
-    # --- НАЧАЛО ИЗМЕНЕНИЙ: Метрики состава тела удалены из этой таблицы ---
-    # --- ДИНАМИЧЕСКИЕ СВОЙСТВА для получения данных из последней записи BodyAnalysis ---
-
-    def _get_latest_analysis(self):
-        """
-        Вспомогательный метод для получения последней записи анализа.
-        Кэширует результат внутри объекта, чтобы не делать лишних запросов к БД.
-        """
-        if not hasattr(self, '_cached_latest_analysis'):
-            self._cached_latest_analysis = BodyAnalysis.query.filter_by(user_id=self.id).order_by(
-                BodyAnalysis.timestamp.desc()).first()
-        return self._cached_latest_analysis
-
-    @property
-    def latest_analysis(self):
-        """Публичное свойство для доступа ко всему объекту последнего анализа."""
-        return self._get_latest_analysis()
-
-    # Создаем свойства для каждого поля, которое раньше было в этой таблице.
-    # Теперь они "на лету" берут данные из последней записи BodyAnalysis.
-    @property
-    def height(self):
-        analysis = self._get_latest_analysis()
-        return analysis.height if analysis else None
-
-    @property
-    def weight(self):
-        analysis = self._get_latest_analysis()
-        return analysis.weight if analysis else None
-
-    @property
-    def muscle_mass(self):
-        analysis = self._get_latest_analysis()
-        return analysis.muscle_mass if analysis else None
-
-    @property
-    def muscle_percentage(self):
-        analysis = self._get_latest_analysis()
-        return analysis.muscle_percentage if analysis else None
-
-    @property
-    def body_water(self):
-        analysis = self._get_latest_analysis()
-        return analysis.body_water if analysis else None
-
-    @property
-    def protein_percentage(self):
-        analysis = self._get_latest_analysis()
-        return analysis.protein_percentage if analysis else None
-
-    @property
-    def bone_mineral_percentage(self):
-        analysis = self._get_latest_analysis()
-        return analysis.bone_mineral_percentage if analysis else None
-
-    @property
-    def skeletal_muscle_mass(self):
-        analysis = self._get_latest_analysis()
-        return analysis.skeletal_muscle_mass if analysis else None
-
-    @property
-    def visceral_fat_rating(self):
-        analysis = self._get_latest_analysis()
-        return analysis.visceral_fat_rating if analysis else None
-
-    @property
-    def metabolism(self):
-        analysis = self._get_latest_analysis()
-        return analysis.metabolism if analysis else None
-
-    @property
-    def waist_hip_ratio(self):
-        analysis = self._get_latest_analysis()
-        return analysis.waist_hip_ratio if analysis else None
-
-    @property
-    def body_age(self):
-        analysis = self._get_latest_analysis()
-        return analysis.body_age if analysis else None
-
-    @property
-    def fat_mass(self):
-        analysis = self._get_latest_analysis()
-        return analysis.fat_mass if analysis else None
-
-    @property
-    def bmi(self):
-        analysis = self._get_latest_analysis()
-        return analysis.bmi if analysis else None
-
-    @property
-    def fat_free_body_weight(self):
-        analysis = self._get_latest_analysis()
-        return analysis.fat_free_body_weight if analysis else None
-
-    # --- КОНЕЦ ИЗМЕНЕНИЙ ---
-
-    # --- ПОЛЯ ДЛЯ ЦЕЛЕЙ (остаются здесь, т.к. относятся к пользователю) ---
-    fat_mass_goal = db.Column(db.Float, nullable=True)
-    muscle_mass_goal = db.Column(db.Float, nullable=True)
-
-    is_trainer = db.Column(db.Boolean, default=False, nullable=False)
-    # Сохраняем только имя файла аватарки
-    avatar = db.Column(db.String(200), nullable=False, default='i.webp')
-
-    analysis_comment = db.Column(db.Text)
-    telegram_chat_id = db.Column(db.String(50), nullable=True)
-    telegram_code = db.Column(db.String(10), nullable=True)
-    show_welcome_popup = db.Column(db.Boolean, default=False, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-class Subscription(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
-    start_date = db.Column(db.Date, default=date.today)
-    end_date = db.Column(db.Date, nullable=True) # Может быть NULL для безлимитной
-    source = db.Column(db.String(50))  # 'promo', 'online', 'admin'
-
-    # --- НОВЫЕ ПОЛЯ ---
-    status = db.Column(db.String(20), nullable=False, default='active') # 'active', 'frozen', 'cancelled'
-    remaining_days_on_freeze = db.Column(db.Integer, nullable=True)
-
-    user = db.relationship('User', backref=db.backref('subscription', uselist=False))
-
-    @property
-    def is_active(self):
-        """Проверяет, активна ли подписка ПРЯМО СЕЙЧАС."""
-        today = date.today()
-        # Подписка активна, если ее статус 'active', она уже началась и еще не закончилась (или безлимитная)
-        return (self.status == 'active' and
-                self.start_date <= today and
-                (self.end_date is None or self.end_date >= today))
-
-class Order(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # Уникальный ID нашего внутреннего заказа
-    order_id = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
-    # ID счета, который вернет Kaspi
-    kaspi_invoice_id = db.Column(db.String(100), nullable=True)
-    subscription_type = db.Column(db.String(20), nullable=False)  # e.g., '1m', '6m', '12m'
-    amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='pending')  # pending, paid, failed
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    paid_at = db.Column(db.DateTime, nullable=True)
-
-    user = db.relationship('User', backref=db.backref('orders', lazy=True))
-
-
-class Group(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=True)  # «дивиз» группы
-    trainer_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    trainer = db.relationship('User', backref=db.backref('own_group', uselist=False))
-    members = db.relationship('GroupMember', back_populates='group', cascade='all, delete-orphan')
-    messages = db.relationship('GroupMessage', back_populates='group', cascade='all, delete-orphan')
-
-
-class GroupMember(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('group_id', 'user_id', name='uq_group_user'),
-    )
-
-    group = db.relationship('Group', back_populates='members')
-    user = db.relationship('User', backref=db.backref('groups', lazy='dynamic'))
-
-
-class GroupMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    # New: Add support for image messages (stores filename)
-    image_file = db.Column(db.String(200), nullable=True)
-
-    group = db.relationship('Group', back_populates='messages')
-    user = db.relationship('User')
-    # New: Relationship for reactions
-    reactions = db.relationship('MessageReaction', back_populates='message', cascade='all, delete-orphan')
-
-
-class MessageReaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    message_id = db.Column(db.Integer, db.ForeignKey('group_message.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # For simplicity, let's just use 'like' or an emoji string
-    reaction_type = db.Column(db.String(20), nullable=False, default='👍')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('message_id', 'user_id', name='uq_message_user_reaction'),
-    )
-    message = db.relationship('GroupMessage', back_populates='reactions')
-    user = db.relationship('User')
-
-
-class GroupTask(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
-    trainer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    is_announcement = db.Column(db.Boolean, default=False, nullable=False)  # True for announcements, False for tasks
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    due_date = db.Column(db.Date, nullable=True)  # Optional due date for tasks
-
-    group = db.relationship('Group', backref=db.backref('tasks', cascade='all, delete-orphan', lazy='dynamic'))
-    trainer = db.relationship('User')
-
-
-class MealLog(db.Model):
-    __tablename__ = 'meal_logs'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    meal_type = db.Column(db.String(20), nullable=False)  # 'breakfast','lunch','dinner','snack'
-    # новые поля для расчётов
-    name = db.Column(db.String(100), nullable=True)  # Название блюда от AI
-    verdict = db.Column(db.String(200), nullable=True)  # Краткий вердикт от AI
-
-    calories = db.Column(db.Integer, nullable=False)
-    protein = db.Column(db.Float, nullable=False)
-    fat = db.Column(db.Float, nullable=False)
-    carbs = db.Column(db.Float, nullable=False)
-    # оригинальный текст (на всякий случай)
-    analysis = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    user = db.relationship('User', backref=db.backref('meals', lazy=True))
-    __table_args__ = (
-        UniqueConstraint('user_id', 'date', 'meal_type', name='uq_user_date_meal'),
-    )
-
-
-class Activity(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    date = db.Column(db.Date, default=date.today)
-    steps = db.Column(db.Integer)
-    active_kcal = db.Column(db.Integer)
-    resting_kcal = db.Column(db.Integer)
-    distance_km = db.Column(db.Float)
-    heart_rate_avg = db.Column(db.Integer)
-    source = db.Column(db.String(50))  # например: "apple_watch", "mi_band", "manual"
-
-    user = db.relationship("User", backref=db.backref("activities", lazy=True))
-
-
-class Diet(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    date = db.Column(db.Date, default=date.today)
-    breakfast = db.Column(db.Text)
-    lunch = db.Column(db.Text)
-    dinner = db.Column(db.Text)
-    snack = db.Column(db.Text)
-    total_kcal = db.Column(db.Integer)
-    protein = db.Column(db.Float)
-    fat = db.Column(db.Float)
-    carbs = db.Column(db.Float)
-    user = db.relationship('User', backref=db.backref('diets', lazy=True))
-
-class Training(db.Model):
-    __tablename__ = 'trainings'
-    id = db.Column(db.Integer, primary_key=True)
-    trainer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    meeting_link = db.Column(db.String(255), nullable=False)
-
-    title = db.Column(db.String(120), nullable=False, default="Онлайн-тренировка")
-    description = db.Column(db.Text, default="")
-    date = db.Column(db.Date, nullable=False, index=True)
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
-    location = db.Column(db.String(120))
-    capacity = db.Column(db.Integer, default=10)
-    is_public = db.Column(db.Boolean, default=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    trainer = db.relationship('User', backref=db.backref('trainings', lazy=True))
-    signups = db.relationship('TrainingSignup', backref='training', cascade="all, delete-orphan")
-
-    __table_args__ = (
-        db.UniqueConstraint('trainer_id', 'date', 'start_time', name='uq_trainer_date_start'),
-    )
-
-    def to_dict(self, me_id=None):
-        mine = (me_id is not None and self.trainer_id == me_id)
-        now = datetime.now()
-        start_dt = datetime.combine(date.today().replace(day=1), dt_time.min)
-        end_dt = datetime.combine(self.date, self.end_time)
-        is_past = now >= end_dt
-        link_visible_at = (start_dt - timedelta(minutes=10))
-
-        joined = False
-        if me_id:
-            joined = any(s.user_id == me_id for s in self.signups)
-
-        seats_taken = len(self.signups)
-        spots_left = max(0, (self.capacity or 0) - seats_taken)
-
-        can_open_link = False
-        if mine:
-            can_open_link = True
-        elif joined and (now >= link_visible_at) and not is_past:
-            can_open_link = True
-
-        payload = {
-            "id": self.id,
-            "trainer_id": self.trainer_id,
-            "trainer_name": (self.trainer.name if self.trainer and getattr(self.trainer, "name", None) else "Тренер"),
-            "title": self.title or "Онлайн-тренировка",  # ← добавлено
-            "date": self.date.strftime("%Y-%m-%d"),
-            "start_time": self.start_time.strftime("%H:%M"),
-            "end_time": self.end_time.strftime("%H:%M"),
-            "mine": mine,
-            "joined": joined,
-            "is_past": is_past,
-            "spots_left": spots_left,
-            "link_visible_at": link_visible_at.isoformat(timespec="minutes"),
-            "can_open_link": can_open_link
-        }
-        if can_open_link:
-            payload["meeting_link"] = self.meeting_link
-        return payload
-
-
-class TrainingSignup(db.Model):
-    __tablename__ = 'training_signups'
-    id = db.Column(db.Integer, primary_key=True)
-    training_id = db.Column(db.Integer, db.ForeignKey('trainings.id', ondelete="CASCADE"), nullable=False, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False, index=True)
-    notified_1h = db.Column(db.Boolean, default=False)  # телеграм-уведомление за 1ч отправлено
-    notified_start = db.Column(db.Boolean, default=False)  # уведомление в момент старта отправлено
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint('training_id', 'user_id', name='uq_training_user'),
-    )
 
 import os, threading, time as time_mod, requests
 
@@ -505,6 +155,7 @@ def _notification_worker():
         while True:
             try:
                 now = datetime.now()
+                now_d = now.date()
                 target = now + timedelta(hours=1)
 
                 # 1) Напоминания за 1 час (как было)
@@ -601,7 +252,31 @@ def _notification_worker():
                 db.session.remove()
                 time_mod.sleep(60)
 
+def create_app():
+    app = Flask(__name__)
 
+    with app.app_context():
+        start_meal_scheduler(app)
+
+    return app
+
+def get_effective_user_settings(u):
+    from models import UserSettings, db
+    s = getattr(u, "settings", None)
+    if s is None:
+        # создаём и сразу наполняем значениями из User (если там уже выставлено)
+        s = UserSettings(
+            user_id=u.id,
+            telegram_notify_enabled=bool(getattr(u, "telegram_notify_enabled", False)),
+            notify_trainings=bool(getattr(u, "notify_trainings", False)),
+            notify_subscription=bool(getattr(u, "notify_subscription", False)),
+            notify_meals=bool(getattr(u, "notify_meals", False)),
+            meal_timezone="Asia/Almaty",  # ← дефолт
+
+        )
+        db.session.add(s)
+        db.session.commit()
+    return s
 def start_training_notifier():
     global _notifier_started
     if _notifier_started:
@@ -611,37 +286,17 @@ def start_training_notifier():
         th = threading.Thread(target=_notification_worker, daemon=True)
         th.start()
 
-# Запустим уведомитель после инициализации БД
-start_training_notifier()
-
-
-
-class BodyAnalysis(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    height = db.Column(db.Integer)
-    weight = db.Column(db.Float)
-    muscle_mass = db.Column(db.Float)
-    muscle_percentage = db.Column(db.Float)
-    body_water = db.Column(db.Float)
-    protein_percentage = db.Column(db.Float)
-    bone_mineral_percentage = db.Column(db.Float)
-    skeletal_muscle_mass = db.Column(db.Float)
-    visceral_fat_rating = db.Column(db.Float)
-    metabolism = db.Column(db.Integer)
-    waist_hip_ratio = db.Column(db.Float)
-    body_age = db.Column(db.Integer)
-    fat_mass = db.Column(db.Float)
-    bmi = db.Column(db.Float)
-    fat_free_body_weight = db.Column(db.Float)
-
-    user = db.relationship('User', backref=db.backref('analyses', lazy=True))
-
-
 with app.app_context():
     db.create_all()
     # Мини-миграции для новых полей в user
+
+    # Запускаем фоновые задачи ТОЛЬКО после инициализации БД
+    try:
+        from meal_reminders import start_meal_scheduler
+        start_meal_scheduler(app)
+    except Exception:
+        pass
+    start_training_notifier()
 
 
 
@@ -662,7 +317,7 @@ def _parse_date_yyyy_mm_dd(s: str) -> date:
 def _parse_hh_mm(s: str):
     try:
         hh, mm = map(int, s.split(':'))
-        return time_cls(hh, mm)
+        return dt_time(hh, mm)
     except Exception:
         abort(400, description="Некорректное время (ожидается HH:MM)")
 
@@ -1492,8 +1147,10 @@ def generate_telegram_code():
 
 
 @app.route('/generate_diet')
+@login_required
 def generate_diet():
-    if not get_current_user().has_subscription:
+    user = get_current_user()
+    if not getattr(user, 'has_subscription', False):
         flash("Генерация диеты доступна только по подписке.", "warning")
         return redirect(url_for('profile'))
 
@@ -2122,8 +1779,20 @@ from flask import jsonify # Убедись, что jsonify импортиров�
 
 @app.route('/analyze_meal_photo', methods=['POST'])
 def analyze_meal_photo():
-    if not get_current_user().has_subscription:
+    # Поддержка вызова из Telegram: принимаем chat_id в форме или query
+    chat_id = request.form.get('chat_id') or request.args.get('chat_id')
+    user = None
+    if chat_id:
+        user = User.query.filter_by(telegram_chat_id=str(chat_id)).first()
+    else:
+        user = get_current_user()
+
+    if not user:
+        return jsonify({"error": "unauthorized", "reason": "no_user"}), 401
+
+    if not getattr(user, 'has_subscription', False):
         return jsonify({"error": "Эта функция доступна только по подписке.", "subscription_required": True}), 403
+
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "Файл не найден"}), 400
@@ -2133,7 +1802,6 @@ def analyze_meal_photo():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
-
     try:
         with open(filepath, 'rb') as f:
             b64 = base64.b64encode(f.read()).decode('utf-8')
@@ -2141,6 +1809,7 @@ def analyze_meal_photo():
         # --- ИЗМЕНЕННЫЙ ПРОМПТ ---
         system_prompt = (
             "Ты — профессиональный диетолог. Проанализируй фото еды. Определи:"
+            "\n- Каллорий должен быть максимально реалистичным, не ровно 400, 500. А числа в которые хочется верить что то вроде 370, 420.."
             "\n- Название блюда (в поле 'name')."
             "\n- Калорийность, Белки, Жиры, Углеводы (в полях 'calories', 'protein', 'fat', 'carbs')."
             "\n- Дай подробный текстовый анализ блюда (в поле 'analysis')."
@@ -2169,6 +1838,105 @@ def analyze_meal_photo():
     except Exception as e:
         return jsonify({"error": f"Ошибка анализа фото: {e}"}), 500
 
+@app.route('/api/subscription/status')
+def subscription_status():
+    chat_id = request.args.get('chat_id')
+    user = None
+    if chat_id:
+        user = User.query.filter_by(telegram_chat_id=str(chat_id)).first()
+    else:
+        user = get_current_user()
+
+    if not user:
+        return jsonify({"ok": False, "reason": "no_user"}), 401
+
+    return jsonify({"ok": True, "has_subscription": bool(getattr(user, 'has_subscription', False))})
+
+@app.route('/api/trainings/my')
+def api_trainings_my():
+    # Фильтрация по локальному времени Алматы, поддержка start_time как datetime *и* как time (+ отдельная дата)
+    from zoneinfo import ZoneInfo
+    from datetime import datetime, date, time as dt_time
+
+    chat_id = request.args.get('chat_id')
+    user = None
+    if chat_id:
+        user = User.query.filter_by(telegram_chat_id=str(chat_id)).first()
+    else:
+        user = get_current_user()
+
+    if not user:
+        return jsonify({"ok": False, "reason": "no_user"}), 401
+
+    tz_almaty = ZoneInfo("Asia/Almaty")
+    tz_utc = ZoneInfo("UTC")
+    now_local = datetime.now(tz_almaty)
+
+    # Берём список тренировок пользователя без фильтра по времени (типы полей могут отличаться),
+    # дальше фильтруем и сортируем в Python.
+    q = (
+        db.session.query(Training)
+        .join(TrainingSignup, TrainingSignup.training_id == Training.id)
+        .filter(TrainingSignup.user_id == user.id)
+        .limit(200)
+    )
+
+    entries = []
+    for t in q.all():
+        # Поля времени/даты могут называться по-разному
+        start_field = getattr(t, 'start_time', None)
+        date_field = (
+            getattr(t, 'start_date', None)
+            or getattr(t, 'date', None)
+            or getattr(t, 'day', None)
+        )
+
+        if not start_field:
+            continue
+
+        # Собираем локальный datetime Алматы
+        local_dt = None
+        if isinstance(start_field, datetime):
+            local_dt = start_field if start_field.tzinfo else start_field.replace(tzinfo=tz_almaty)
+        elif isinstance(start_field, dt_time):
+            # Нужна дата: пробуем взять из date_field
+            if date_field:
+                if isinstance(date_field, datetime):
+                    d = date_field.date()
+                elif isinstance(date_field, date):
+                    d = date_field
+                else:
+                    d = None
+                if d is not None:
+                    local_dt = datetime.combine(d, start_field).replace(tzinfo=tz_almaty)
+        elif isinstance(start_field, date):
+            # Редкий случай: есть только дата — считаем 00:00
+            local_dt = datetime.combine(start_field, dt_time(0, 0)).replace(tzinfo=tz_almaty)
+
+        if not local_dt:
+            # Не смогли восстановить полный datetime — пропускаем
+            continue
+
+        # Отфильтруем прошедшие
+        if local_dt < now_local:
+            continue
+
+        start_utc = local_dt.astimezone(tz_utc)
+
+        entries.append({
+            "id": t.id,
+            "title": getattr(t, 'title', getattr(t, 'name', 'Тренировка')),
+            "start_utc": start_utc,  # для сортировки
+            "start_time": start_utc.isoformat().replace("+00:00", "Z"),
+            "location": getattr(t, 'location', None),
+        })
+
+    # Сортируем по времени начала
+    entries.sort(key=lambda x: (x["start_utc"], x["id"]))
+    # Возвращаем первые 50
+    items = [{k: v for k, v in e.items() if k != "start_utc"} for e in entries[:50]]
+
+    return jsonify({"ok": True, "items": items})
 
 @app.route('/api/meals/today/<int:chat_id>')
 def get_today_meals_api(chat_id):
@@ -3628,42 +3396,117 @@ def dismiss_renewal_reminder():
     db.session.commit()
     return jsonify({"ok": True})
 
-@app.get("/api/me/telegram/settings")
+@app.get("/api/me/telegram/status")
+@login_required
+def telegram_status():
+    u = get_current_user()
+    return jsonify({"linked": bool(u and u.telegram_chat_id)})
+
+@app.route('/api/me/telegram/settings')
 @login_required
 def get_tg_settings():
+    from models import db
     u = get_current_user()
-    if not u:
-        return jsonify({"ok": False}), 401
-    return jsonify({
+    s = get_effective_user_settings(u)  # <-- синхронизация, если пусто
+
+    payload = {
         "ok": True,
-        "telegram_notify_enabled": bool(getattr(u, "telegram_notify_enabled", True)),
-        "notify_trainings":        bool(getattr(u, "notify_trainings", True)),
-        "notify_subscription":     bool(getattr(u, "notify_subscription", True)),
-    })
+        "telegram_notify_enabled": bool(s.telegram_notify_enabled),
+        "notify_trainings":        bool(s.notify_trainings),
+        "notify_subscription":     bool(s.notify_subscription),
+        "notify_meals":            bool(s.notify_meals),
+        # алиас для старого фронта
+        "notify_promos":           bool(s.notify_subscription),
+    "meal_timezone":           s.meal_timezone or "Asia/Almaty",  # ← дефолт Алматы
 
-@app.post("/api/me/telegram/settings")
-@login_required
-def set_tg_settings():
-    u = get_current_user()
-    if not u:
-        return jsonify({"ok": False}), 401
-    data = request.get_json(silent=True) or {}
+    }
+    resp = jsonify(payload)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
-    def to_bool(v):
-        if isinstance(v, bool): return v
-        return str(v).lower() in ("1","true","yes","on")
 
-    for key in ("telegram_notify_enabled","notify_trainings","notify_subscription"):
-        if key in data:
-            setattr(u, key, to_bool(data[key]))
-    db.session.commit()
-    return jsonify({"ok": True})
 
 
 # app.py
 @app.route("/devices")
 def devices():
     return render_template("devices.html")
+bp = Blueprint("settings_api", __name__, url_prefix="/bp")
+
+@bp.route("/api/me/telegram/settings", methods=["GET"])
+def get_tg_settings():
+    s = current_user.settings or UserSettings(user_id=current_user.id)
+    if not current_user.settings:
+        db.session.add(s); db.session.commit()
+    return jsonify({
+        "ok": True,
+        "telegram_notify_enabled": bool(s.telegram_notify_enabled),
+        "notify_trainings":        bool(s.notify_trainings),
+        "notify_subscription":     bool(s.notify_subscription),
+        # НОВОЕ
+        "notify_meals":            bool(s.notify_meals),
+        "meal_timezone": s.meal_timezone or "Asia/Almaty",
+    })
+
+
+@app.route('/api/me/telegram/settings', methods=['POST','PATCH'])
+@login_required
+def patch_tg_settings():
+    u = get_current_user()
+    s = get_effective_user_settings(u)
+
+    data = request.get_json(silent=True) or request.form.to_dict(flat=True) or {}
+
+    def to_bool(v):
+        if isinstance(v, bool): return v
+        if isinstance(v, (int, float)): return v != 0
+        if v is None: return False
+        return str(v).strip().lower() in ("1","true","yes","on","y")
+
+    alias_map = {
+        "telegram_notify_enabled":         "telegram_notify_enabled",
+        "telegram_notifications_enabled":  "telegram_notify_enabled",  # алиас
+        "notify_trainings":                "notify_trainings",
+        "notify_subscription":             "notify_subscription",
+        "notify_promos":                   "notify_subscription",       # алиас
+        "notify_meals":                    "notify_meals",
+    }
+
+    touched = {}
+    for incoming_key, model_attr in alias_map.items():
+        if incoming_key in data:
+            val = to_bool(data[incoming_key])
+            setattr(s, model_attr, val)   # источник истины
+            setattr(u, model_attr, val)   # для обратной совместимости
+            touched[model_attr] = val
+
+    if "meal_timezone" in data:
+        tz = (data.get("meal_timezone") or "").strip()
+        try:
+            ZoneInfo(tz)  # валидация
+        except Exception:
+            return jsonify({"ok": False, "error": "invalid_timezone"}), 400
+        s.meal_timezone = tz
+        touched["meal_timezone"] = tz
+
+    db.session.add_all([s, u])
+    db.session.commit()
+
+    resp = jsonify({
+        "ok": True,
+        "saved": touched,
+        "telegram_notify_enabled": bool(s.telegram_notify_enabled),
+        "notify_trainings":        bool(s.notify_trainings),
+        "notify_subscription":     bool(s.notify_subscription),
+        "notify_meals":            bool(s.notify_meals),
+        "notify_promos":           bool(s.notify_subscription),
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+# регистрация блюпринта (добавь после определения маршрутов)
+app.register_blueprint(bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

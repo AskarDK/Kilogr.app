@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from zoneinfo import ZoneInfo
 from datetime import datetime
+import pytz  # убедись, что в requirements есть pytz
 
 # --- КОНФИГУРАЦИЯ ---
 load_dotenv()
@@ -28,6 +29,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+ALMATY_TZ = pytz.timezone("Asia/Almaty")
 
 TIMEZONE = "Asia/Almaty"
 # Убедитесь, что URL в .env файле правильный (например, http://127.0.0.1:5000)
@@ -43,15 +45,37 @@ os.makedirs("temp_photos", exist_ok=True)
 (ASK_CODE, SELECT_MENU, ASK_PHOTO, HANDLE_SAVE, OVERWRITE_CONFIRM, HISTORY_MENU, ACTIVITY_INPUT) = range(7)
 
 
-# --- Клавиатура главного меню ---
+# --- Клавиатура главного меню (плитки 2×2) ---
 MAIN_MENU_KEYBOARD = [
+    [InlineKeyboardButton("🍽️ Питание", callback_data="menu_nutrition"),
+     InlineKeyboardButton("🏋️ Тренировки", callback_data="menu_training")],
+    [InlineKeyboardButton("📈 Прогресс", callback_data="menu_progress"),
+     InlineKeyboardButton("⚙️ Ещё", callback_data="menu_more")],
+]
+# --- Подменю ---
+NUTRITION_MENU_KEYBOARD = [
     [InlineKeyboardButton("➕ Добавить приём пищи", callback_data="add")],
     [InlineKeyboardButton("🍽️ Приемы пищи за сегодня", callback_data="today_meals")],
+    [InlineKeyboardButton("🥗 Текущая диета", callback_data="current")],
+    [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")],
+]
+
+TRAININGS_MENU_KEYBOARD = [
+    [InlineKeyboardButton("🏋️ Мои тренировки", callback_data="my_trainings")],
+    [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")],
+]
+
+PROGRESS_MENU_KEYBOARD = [
     [InlineKeyboardButton("🚀 Мой прогресс", callback_data="progress")],
     [InlineKeyboardButton("📜 Моя история", callback_data="history")],
-    [InlineKeyboardButton("🥗 Текущая диета", callback_data="current")],
-    [InlineKeyboardButton("➕ Добавить активность", callback_data="add_activity")],  # ← ДОБАВЛЕНО
+    [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")],
 ]
+
+MORE_MENU_KEYBOARD = [
+    [InlineKeyboardButton("➕ Добавить активность", callback_data="add_activity")],
+    [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")],
+]
+
 
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменений) ---
@@ -73,15 +97,20 @@ async def cleanup_chat(context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
+def remember_msg(context: ContextTypes.DEFAULT_TYPE, message_id: int):
+    """Добавляет message_id в список для автоочистки, без дублей."""
+    lst = context.user_data.setdefault('messages_to_delete', [])
+    if message_id not in lst:
+        lst.append(message_id)
+
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await cleanup_chat(context)
-    text = "👋 Вы в главном меню. Что хотите сделать?"
+    text = "👋 Выберите раздел:"
     reply_markup = InlineKeyboardMarkup(MAIN_MENU_KEYBOARD)
-    # Используем effective_chat, чтобы работало и с query, и с message
     chat = update.effective_chat
     sent_message = await chat.send_message(text, reply_markup=reply_markup)
     context.user_data['main_menu_message_id'] = sent_message.message_id
-    context.user_data['messages_to_delete'] = []
+    context.user_data['messages_to_delete'] = []  # начинаем новый цикл очистки
 
 
 async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,6 +130,24 @@ async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # Добавьте эту новую функцию в telegram_bot.py
+async def open_menu_from_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Открывает главное меню по любому тексту, если пользователь зарегистрирован.
+       В шагах ввода кода/активности лучше не использовать (см. маршрутизацию ниже)."""
+    chat_id = update.effective_chat.id
+    # Проверим, привязан ли Telegram
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{BACKEND_URL}/api/is_registered/{chat_id}") as resp:
+                if resp.status == 200:
+                    await show_main_menu(update, context)
+                    return SELECT_MENU
+                else:
+                    sent = await update.message.reply_text("🔐 Введите 8-значный код из личного кабинета:")
+                    remember_msg(context, sent.message_id)
+                    return ASK_CODE
+    except aiohttp.ClientError:
+        await update.message.reply_text("⚠️ Не удалось подключиться к серверу. Попробуйте позже.")
+        return ConversationHandler.END
 
 async def show_today_meals(update_or_query: Update, context: ContextTypes.DEFAULT_TYPE):
     """Запрашивает у бэкенда и отображает все приемы пищи за сегодня."""
@@ -141,6 +188,8 @@ async def show_today_meals(update_or_query: Update, context: ContextTypes.DEFAUL
                             [[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]]
                         )
                     )
+                    remember_msg(context, loading_msg.message_id)
+
                 else:
                     await loading_msg.edit_text("⚠️ Произошла ошибка при загрузке данных.")
     except aiohttp.ClientError as e:
@@ -190,6 +239,44 @@ async def verify_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Не удалось подключиться к серверу. Попробуйте позже.")
             return ConversationHandler.END
 
+async def my_trainings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    chat_id = str(chat.id)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{BACKEND_URL}/api/trainings/my", params={"chat_id": chat_id}) as resp:
+            if resp.status != 200:
+                await chat.send_message("⚠️ Не удалось получить ваши тренировки. Попробуйте позже.")
+                return
+
+            data = await resp.json()
+            items = data.get("items", [])
+            if not items:
+                await chat.send_message("🏋️ У вас пока нет ближайших записей на тренировки.")
+                return
+
+            lines = []
+            for it in items:
+                # преобразуем ISO время к Алматинскому
+                dt = None
+                if it.get("start_time"):
+                    try:
+                        # parse ISO → utc → local
+                        dt_utc = datetime.fromisoformat(it["start_time"].replace("Z", "+00:00"))
+                        dt = dt_utc.astimezone(ALMATY_TZ)
+                    except Exception:
+                        dt = None
+
+                when = dt.strftime("%d.%m %H:%M") if dt else "время не указано"
+                title = it.get("title") or "Тренировка"
+                location = it.get("location")
+                if location:
+                    lines.append(f"• {when} — {title} ({location})")
+                else:
+                    lines.append(f"• {when} — {title}")
+
+            text = "🏋️ *Мои ближайшие тренировки:*\n\n" + "\n".join(lines)
+            msg = await chat.send_message(text, parse_mode="Markdown")
+            remember_msg(context, msg.message_id)
 
 async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -197,9 +284,49 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
     data = query.data
     chat = update.effective_chat
     chat_id = chat.id
-
+    last_menu_id = context.user_data.pop('main_menu_message_id', None)
+    if last_menu_id:
+        try:
+            await context.bot.delete_message(chat_id=chat.id, message_id=last_menu_id)
+        except Exception as e:
+            logging.warning(f"Could not delete previous main menu ({last_menu_id}): {e}")
     # Ничего не удаляем перед отправкой нового сообщения
-    context.user_data['main_menu_message_id'] = None
+    # --- Плитки главного меню -> подменю ---
+    if data == "menu_nutrition":
+        sent = await chat.send_message(
+            "🍽️ Раздел *Питание* — выберите действие:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(NUTRITION_MENU_KEYBOARD)
+        )
+        remember_msg(context, sent.message_id)
+        return SELECT_MENU
+
+    if data == "menu_training":
+        sent = await chat.send_message(
+            "🏋️ Раздел *Тренировки*:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(TRAININGS_MENU_KEYBOARD)
+        )
+        remember_msg(context, sent.message_id)
+        return SELECT_MENU
+
+    if data == "menu_progress":
+        sent = await chat.send_message(
+            "📈 Раздел *Прогресс*:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(PROGRESS_MENU_KEYBOARD)
+        )
+        remember_msg(context, sent.message_id)
+        return SELECT_MENU
+
+    if data == "menu_more":
+        sent = await chat.send_message(
+            "⚙️ Раздел *Ещё*:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(MORE_MENU_KEYBOARD)
+        )
+        remember_msg(context, sent.message_id)
+        return SELECT_MENU
 
     if data == "add":
         keyboard = [
@@ -213,7 +340,7 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
             "Выберите тип приёма пищи:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        context.user_data['messages_to_delete'] = [sent_message.message_id]
+        remember_msg(context, sent_message.message_id)  # ← вместо перетирания списка
         return ASK_PHOTO
 
     if data == "today_meals":
@@ -250,6 +377,7 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
                         text += (f"Итого: *{diet['total_kcal']} ккал* (Б: {diet['protein']}г, "
                                  f"Ж: {diet['fat']}г, У: {diet['carbs']}г)")
                         await loading_msg.edit_text(text, parse_mode="Markdown")
+                        remember_msg(context, loading_msg.message_id)
                     elif resp.status == 404:
                         await loading_msg.edit_text("🤷‍♂️ У вас пока нет сгенерированной диеты. Создайте её в профиле на сайте.")
                     else:
@@ -261,8 +389,14 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await show_main_menu(update, context)
         return SELECT_MENU
 
+    if data == "my_trainings":
+        await my_trainings(update, context)
+        await show_main_menu(update, context)
+        return SELECT_MENU
+
     await show_main_menu(update, context)
     return SELECT_MENU
+
 
 
 async def ask_photo_for_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -301,16 +435,39 @@ async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo_file = await context.bot.get_file(file_id)
         photo_bytes = await photo_file.download_as_bytearray()
 
-        # Отправляем фото на бэкенд
         form_data = aiohttp.FormData()
         form_data.add_field('file', photo_bytes, filename='meal.jpg', content_type='image/jpeg')
+        form_data.add_field('chat_id', str(update.effective_chat.id))
 
         async with aiohttp.ClientSession() as session:
+            # NEW: сначала проверяем статус подписки
+            async with session.get(f"{BACKEND_URL}/api/subscription/status",
+                                   params={"chat_id": str(update.effective_chat.id)}) as s:
+                if s.status == 200:
+                    sub = await s.json()
+                    if not sub.get("has_subscription"):
+                        await analyzing_msg.delete()
+                        await update.message.reply_text(
+                            "🔒 Анализ по фото доступен по подписке.\n"
+                            "✍️ Для ручного ввода просто отправьте сообщение вида:\n"
+                            "«гречка 150 г, куриная грудка 120 г, салат 80 г»."
+                        )
+                        await show_main_menu(update, context)
+                        return SELECT_MENU
+                else:
+                    # если бэкенд не ответил корректно, не пускаем к платной функции
+                    await analyzing_msg.delete()
+                    await update.message.reply_text(
+                        "⚠️ Не удалось проверить подписку. Попробуйте позже или введите приём пищи вручную."
+                    )
+                    await show_main_menu(update, context)
+                    return SELECT_MENU
+
             async with session.post(f"{BACKEND_URL}/analyze_meal_photo", data=form_data) as resp:
                 await analyzing_msg.delete()
                 if resp.status == 200:
                     result_data = await resp.json()
-                    context.user_data["analysis_result"] = result_data # Сохраняем весь JSON
+                    context.user_data["analysis_result"] = result_data  # Сохраняем весь JSON
 
                     # Формируем сообщение с результатом
                     text = (f"📊 *Результат анализа:*\n\n"
@@ -495,11 +652,13 @@ async def show_progress(update_or_query: Update, context: ContextTypes.DEFAULT_T
         text += f"🧈 Жир: {get_diff_str(latest.get('fat_mass'), previous.get('fat_mass'))}\n"
         text += f"💪 Мышцы: {get_diff_str(latest.get('muscle_mass'), previous.get('muscle_mass'))}"
 
-    await chat.send_message(
+    msg = await chat.send_message(
         text,
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
     )
+    remember_msg(context, msg.message_id)
+
 
 async def show_history_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -519,7 +678,7 @@ async def show_history_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception: pass
 
     sent_message = await chat.send_message(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    context.user_data['messages_to_delete'] = [sent_message.message_id]
+    remember_msg(context, sent_message.message_id)
     return HISTORY_MENU
 
 
@@ -572,6 +731,7 @@ async def handle_history_pagination(update: Update, context: ContextTypes.DEFAUL
         [InlineKeyboardButton("🔙 Назад к выбору истории", callback_data="back_to_history")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_layout), parse_mode="Markdown")
+    # сообщение уже то же самое, id не меняется — можно не добавлять
     return HISTORY_MENU
 
 
@@ -678,7 +838,7 @@ async def show_activity_prompt(update_or_query, context: ContextTypes.DEFAULT_TY
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_main")]])
         )
-    context.user_data['messages_to_delete'] = [msg.message_id]
+    remember_msg(context, msg.message_id)
     return ACTIVITY_INPUT
 
 
@@ -742,10 +902,12 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler("start", start),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, open_menu_from_text),
             CallbackQueryHandler(handle_menu_selection,
-                                 pattern=r"^(add|add_activity|today_meals|progress|history|current)$"),
+                                 pattern=r"^(menu_nutrition|menu_training|menu_progress|menu_more|add|add_activity|today_meals|progress|history|current|my_trainings)$"),
             CallbackQueryHandler(back_to_main_menu, pattern=r"^back_to_main$"),
         ],
+
         states={
             ASK_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_code)],
             SELECT_MENU: [
@@ -775,7 +937,7 @@ def main():
 
     application.add_handler(conv_handler)
     application.add_error_handler(error_handler)
-
+    application.add_handler(CommandHandler("my_trainings", my_trainings))
     logging.info("✅ Бот запущен")
     application.run_polling()
 

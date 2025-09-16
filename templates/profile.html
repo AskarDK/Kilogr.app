@@ -505,6 +505,61 @@ lockScroll(false);
   border-radius: 10px;
   border: 3px solid transparent;
 }
+
+    /* ==== Telegram attention ==== */
+.tg-attn-btn{ position:relative; }
+.tg-attn-btn .tg-icon{ font-size:1.35rem; line-height:1; }
+
+.tg-attn-btn:not(.linked) .tg-icon{ color:#0ea5e9; }          /* sky-500 */
+.tg-attn-btn.linked        .tg-icon{ color:#10b981; }          /* emerald-500 */
+
+/* Двойная «маяк»-рябь */
+.tg-ping{
+  position:absolute; inset:-2px; border-radius:9999px;
+  border:2px solid rgba(14,165,233,.55);
+  pointer-events:none;
+  animation: tg-pulse-ring 2.2s cubic-bezier(.22,1,.36,1) infinite;
+}
+.tg-ping--1{ animation-delay: 0s;    }
+.tg-ping--2{ animation-delay: .9s;   }
+
+@keyframes tg-pulse-ring{
+  0%   { transform:scale(.65); opacity:.9; }
+  70%  { transform:scale(1.85); opacity:0; }
+  100% { transform:scale(2.05); opacity:0; }
+}
+
+/* Мягкое свечение вокруг кнопки */
+.tg-attn-btn:not(.linked)::after{
+  content:""; position:absolute; inset:-8px; border-radius:9999px;
+  box-shadow: 0 0 0 0 rgba(59,130,246,.0);
+  animation: tg-glow 1.8s ease-in-out infinite;
+}
+@keyframes tg-glow{
+  0%,100%{ box-shadow: 0 0 0 0 rgba(59,130,246,.0); }
+  50%    { box-shadow: 0 0 0 12px rgba(59,130,246,.15); }
+}
+
+/* Лёгкое покачивание иконки (не злоупотребляем) */
+.tg-attn-btn:not(.linked) .tg-icon{
+  animation: tg-wiggle 3.2s ease-in-out 1s infinite;
+}
+@keyframes tg-wiggle{
+  0%,100%{ transform:rotate(0); }
+  10%    { transform:rotate(-12deg); }
+  20%    { transform:rotate(6deg); }
+  30%    { transform:rotate(-3deg); }
+  40%    { transform:rotate(0); }
+}
+
+/* Бейдж подтверждения при привязке */
+.tg-check{
+  position:absolute; top:-4px; right:-4px;
+  background:#10b981; color:#fff; font-weight:800;
+  font-size:.66rem; line-height:1; padding:.275rem .4rem;
+  border-radius:9999px; box-shadow:0 6px 14px rgba(16,185,129,.35);
+}
+
 </style>
 <div class="max-w-7xl mx-auto px-4 py-6">
 
@@ -555,26 +610,25 @@ lockScroll(false);
 
 <div class="card p-6">
         <div class="relative text-center">
+<div class="absolute top-0 right-0 z-10">
+  <button
+    onclick="openTelegramModal()"
+    title="Привязать Telegram"
+    aria-label="Привязать Telegram"
+    class="tg-attn-btn relative p-2 rounded-full hover:bg-slate-100 transition-colors {% if user.telegram_chat_id %}linked{% endif %}">
 
-  <div class="absolute top-0 right-0 z-10">
-    <button onclick="openTelegramModal()" title="Ста..." class="relative p-2 rounded-full hover:bg-slate-100 transition-colors" aria-label="Привязать Telegram">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6
-        {% if user.telegram_chat_id %}
-          text-green-500
-        {% else %}
-          text-slate-400 animate-pulse hover:text-slate-600
-        {% endif %}"
-        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-        <path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4" />
-      </svg>
+    <!-- узнаваемая иконка Telegram -->
+    <i class="bi bi-telegram tg-icon"></i>
 
-      {% if not user.telegram_chat_id %}
-        <span class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-ping"></span>
-        <span class="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white"></span>
-      {% endif %}
-    </button>
-  </div>
+    {% if not user.telegram_chat_id %}
+      <!-- двойной «маяк» + свечение -->
+      <span class="tg-ping tg-ping--1"></span>
+      <span class="tg-ping tg-ping--2"></span>
+    {% else %}
+      <!-- зелёный чек при привязке -->
+    {% endif %}
+  </button>
+</div>
 
 
             {% if user.avatar %}
@@ -1391,13 +1445,13 @@ lockScroll(false);
             <div class="font-medium text-slate-800">Получать в Telegram</div>
             <div class="text-slate-500 text-xs">Отключает/включает все уведомления разом</div>
           </div>
-          <button id="tgSwitchGlobal" role="switch" aria-checked="true" data-key="telegram_notify_enabled"
-                  class="w-12 h-7 rounded-full bg-emerald-500 relative transition">
-            <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
-          </button>
+          <button id="tgSwitchGlobal" role="switch" aria-checked="false" data-key="telegram_notify_enabled"
+        class="w-12 h-7 rounded-full bg-slate-300 relative transition">
+  <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
+</button>
+
         </div>
 
-        <hr class="my-3 border-slate-200">
 
         <div class="space-y-3">
           <div class="flex items-center justify-between">
@@ -1410,6 +1464,19 @@ lockScroll(false);
               <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
             </button>
           </div>
+
+            <!-- Приёмы пищи -->
+<div class="flex items-center justify-between">
+  <div class="text-sm">
+    <div class="font-medium text-slate-800">Приёмы пищи</div>
+    <div class="text-slate-500 text-xs">в 8:00 · 12:00 · 18:00</div>
+  </div>
+  <button id="tgSwitchMeals" role="switch" aria-checked="true" data-key="notify_meals"
+          class="w-12 h-7 rounded-full bg-emerald-500 relative transition">
+    <span class="knob absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition"></span>
+  </button>
+</div>
+
 
           <div class="flex items-center justify-between">
             <div class="text-sm">
@@ -1712,6 +1779,7 @@ function openTelegramModal() {
     .catch(err => alert('Ошибка при генерации кода: ' + err.message));
 }
 
+
 // --- НОВОЕ: UI переключателей
 function renderSwitch(btn, isOn) {
   if (!btn) return;
@@ -1722,8 +1790,10 @@ function renderSwitch(btn, isOn) {
   if (knob) knob.style.transform = isOn ? 'translateX(20px)' : 'translateX(0px)';
 }
 
+let _tgSwitchesBound = false;
 function bindTgSwitches() {
-  const switches = ['tgSwitchGlobal','tgSwitchTrainings','tgSwitchSubscription'];
+  if (_tgSwitchesBound) return; _tgSwitchesBound = true;
+  const switches = ['tgSwitchGlobal','tgSwitchTrainings','tgSwitchSubscription','tgSwitchMeals'];
   switches.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -1731,35 +1801,84 @@ function bindTgSwitches() {
       const key = el.dataset.key;
       const isOn = el.getAttribute('aria-checked') !== 'true';
       renderSwitch(el, isOn);
-      saveTgSettings({ [key]: isOn });
-    });
+
+      // важное: «обнуляем» старые load-ответы, чтобы они не переотщёлкнули UI
+      _appliedSeq = _loadSeq;
+
+      const patch = { [key]: isOn };
+      if (key === 'notify_subscription') patch.notify_promos = isOn;
+      if (key === 'telegram_notify_enabled') patch.telegram_notifications_enabled = isOn;
+
+      saveTgSettings(patch);
+    }, { passive: true });
   });
 }
 
-function loadTgSettings() {
-  fetch('/api/me/telegram/settings')
-    .then(r => r.json())
-    .then(j => {
-      if (!j.ok) return;
-      renderSwitch(document.getElementById('tgSwitchGlobal'),      j.telegram_notify_enabled);
-      renderSwitch(document.getElementById('tgSwitchTrainings'),   j.notify_trainings);
-      renderSwitch(document.getElementById('tgSwitchSubscription'),j.notify_subscription);
-    })
-    .catch(()=>{ /* no-op */ });
-}
-
-let _saveTimer=null;
 function saveTgSettings(patch) {
-  // лёгкий дебаунс, чтобы не спамить
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    fetch('/api/me/telegram/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(patch || {})
-    }).catch(()=>{});
+  _saveTimer = setTimeout(async () => {
+    const payload = { ...(patch || {}) };
+    if ('notify_subscription' in payload) payload.notify_promos = payload.notify_subscription;
+    if ('telegram_notify_enabled' in payload) payload.telegram_notifications_enabled = payload.telegram_notify_enabled;
+
+    try {
+      const r = await fetch('/api/me/telegram/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify(payload)
+      });
+      let j = {}; try { j = await r.json(); } catch (_) {}
+      if (!r.ok || j.ok === false) { console.warn('Save failed', r.status, j); return; }
+
+      // после успешного сохранения тянем актуальные значения
+      _appliedSeq = _loadSeq;
+      await loadTgSettings();
+
+    } catch (e) {
+      console.error('Save error', e);
+    }
   }, 150);
 }
+
+
+
+// seq для отсечения устаревших ответов
+let _loadSeq = 0;
+let _appliedSeq = 0;
+
+function loadTgSettings() {
+  const seq = ++_loadSeq;
+  return fetch('/api/me/telegram/settings', { credentials: 'same-origin', cache: 'no-store' })
+    .then(r => r.json())
+    .then(j => {
+      // игнорируем неактуальные ответы
+      if (seq <= _appliedSeq || !j || j.ok === false) return;
+
+      _appliedSeq = seq;
+
+      renderSwitch(document.getElementById('tgSwitchGlobal'),       toBool(j.telegram_notify_enabled ?? j.telegram_notifications_enabled));
+      renderSwitch(document.getElementById('tgSwitchTrainings'),    toBool(j.notify_trainings));
+      renderSwitch(document.getElementById('tgSwitchSubscription'), toBool(j.notify_subscription ?? j.notify_promos));
+      renderSwitch(document.getElementById('tgSwitchMeals'),        toBool(j.notify_meals));
+    })
+    .catch(e => console.error('Load settings failed', e));
+}
+
+
+
+let _saveTimer = null;
+
+function toBool(v){
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on' || s === 'y';
+}
+
+
 
 
 function closeTelegramModal() {

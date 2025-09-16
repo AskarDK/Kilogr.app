@@ -3,35 +3,51 @@
 
 {% block content %}
 <style>
-  /* --------- Мелкие анимации и доработки UI --------- */
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
-  .fade-in { animation: fadeIn .2s ease-out; }
-  .chip { @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium; }
-  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-200; }
-  .card-hover { transition: transform .15s ease, box-shadow .15s ease; }
-  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -14px rgba(0,0,0,.35); }
+  /* ---------- Базовые мелочи ---------- */
+  .fade-in{animation:fadeIn .2s ease-out}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-  /* --------- Lightbox (просмотр изображений в чате) --------- */
-  #image-lightbox { position: fixed; inset: 0; display: none; justify-content: center; align-items: center; z-index: 1000; cursor: zoom-out;
-                    background: rgba(0,0,0,.85); }
-  #image-lightbox.visible { display: flex; }
-  #image-lightbox img { max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 10px; box-shadow: 0 0 28px rgba(0,0,0,.5); }
-  #lightbox-close { position: absolute; top: 18px; right: 26px; color: #fff; font-size: 36px; font-weight: 800; }
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card-hover{transition:transform .15s ease, box-shadow .15s ease}
+  .card-hover:hover{transform:translateY(-2px);box-shadow:0 10px 22px -14px rgba(0,0,0,.35)}
+  .chip{display:inline-flex;align-items:center;padding:.25rem .5rem;border-radius:9999px;font-size:.75rem;font-weight:600}
 
-  /* --------- Чат-пузыри --------- */
-  .chat-bubble { padding: 8px 12px; max-width: 100%; word-wrap: break-word; border-radius: 1.25rem; }
-  .chat-bubble-me { background-image: linear-gradient(to right, #3b82f6, #6366f1); color:#fff; }
-  .chat-bubble-other { background-color:#e5e7eb; color:#1f2937; }
-  .group-start.chat-bubble-me { border-radius: 1.25rem 1.25rem .35rem 1.25rem; }
-  .group-start.chat-bubble-other { border-radius: 1.25rem 1.25rem 1.25rem .35rem; }
-  .group-middle.chat-bubble-me { border-radius: 1.25rem .35rem .35rem 1.25rem; }
-  .group-middle.chat-bubble-other { border-radius: .35rem 1.25rem 1.25rem .35rem; }
-  .group-end.chat-bubble-me { border-radius: 1.25rem .35rem 1.25rem 1.25rem; }
-  .group-end.chat-bubble-other { border-radius: .35rem 1.25rem 1.25rem 1.25rem; }
+  /* ---------- Чат: переносы, размеры, реакции ---------- */
+  #chat-widget-container{transition:opacity .25s ease, transform .25s ease}
+  #chat-messages-container{overflow-wrap:anywhere;word-break:break-word}
+  .msg-wrap{max-width:90%}
+  .chat-bubble{
+    padding:8px 12px;
+    max-width:85%;
+    overflow-wrap:anywhere;
+    word-break:break-word;
+    white-space:pre-wrap;
+    border-radius:20px;
+    line-height:1.35;
+  }
+  .chat-bubble-me{
+    background-image:linear-gradient(90deg,#3b82f6,#6366f1);
+    color:#fff;
+  }
+  .chat-bubble-other{background:#eef2ff;color:#111827}
+  .chat-img{
+    max-width:85%;
+    max-height:60vh;
+    width:auto;height:auto;
+    display:block;border-radius:12px;object-fit:contain
+  }
+  .reaction-display{user-select:none}
 
-  /* --------- Чат-виджет показ/скрытие --------- */
-  #chat-widget-container { transition: opacity .25s ease, transform .25s ease; }
-  .progress-bar-fill { transition: width .45s ease; }
+  /* ---------- Лайтбокс ---------- */
+  #image-lightbox{position:fixed;inset:0;display:none;justify-content:center;align-items:center;z-index:1000;cursor:zoom-out;background:rgba(0,0,0,.85)}
+  #image-lightbox.visible{display:flex}
+  #image-lightbox img{max-width:90%;max-height:90%;object-fit:contain;border-radius:10px;box-shadow:0 0 28px rgba(0,0,0,.5)}
+  #lightbox-close{position:absolute;top:18px;right:26px;color:#fff;font-size:36px;font-weight:800}
+
+  /* ---------- Хедер ---------- */
+  .header-grad{
+    background:linear-gradient(120deg,#6366f1 0%,#8b5cf6 40%,#ec4899 100%);
+  }
 </style>
 
 <div class="max-w-7xl mx-auto px-3 sm:px-4 py-6 space-y-6">
@@ -55,12 +71,7 @@
 
   {# -------- Хедер группы -------- #}
   <section class="relative overflow-hidden rounded-3xl text-white">
-    <div class="relative bg-gradient-to-r from-indigo-600 via-fuchsia-600 to-pink-600">
-      <div class="absolute inset-0 opacity-25"
-           style="background:
-           radial-gradient(800px 380px at -10% -30%, rgba(255,255,255,.35), transparent),
-           radial-gradient(700px 340px at 110% 120%, rgba(255,255,255,.35), transparent);">
-      </div>
+    <div class="header-grad">
       <div class="relative z-10 p-5 md:p-7 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div class="flex items-start gap-3 md:gap-4">
           <div class="shrink-0">
@@ -127,7 +138,7 @@
               <label class="inline-flex items-center gap-2">
                 <input type="checkbox" name="is_announcement" id="is-announcement"
                        class="h-4 w-4 text-yellow-500 rounded border-gray-300 focus:ring-yellow-400">
-                <span class="text-gray-700">Сделать объявлением</span>
+                <span class="text-gray-700">Объявление</span>
               </label>
               <input type="date" name="due_date"
                      class="px-3 py-2 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500"
@@ -172,10 +183,7 @@
       </div>
 
       {# Лента постов #}
-      {% set tasks = all_posts | selectattr('is_announcement','==',false) | list %}
-      {% set announcements = all_posts | selectattr('is_announcement','==',true) | list %}
-      {% set hasAny = (tasks|length) or (announcements|length) %}
-
+      {% set hasAny = (all_posts|length) %}
       <div id="feed" class="space-y-3">
         {% if hasAny %}
           {% for item in all_posts %}
@@ -214,11 +222,8 @@
                 </div>
 
                 {% if current_user.is_trainer and group.trainer_id == current_user.id %}
-                <form action="{{ url_for('delete_group_task', task_id=item.id) }}" method="POST"
-                      class="shrink-0">
-                  <button type="submit"
-                          class="p-2 rounded-lg text-rose-500 hover:bg-rose-50"
-                          title="Удалить запись">
+                <form action="{{ url_for('delete_group_task', task_id=item.id) }}" method="POST" class="shrink-0">
+                  <button type="submit" class="p-2 rounded-lg text-rose-500 hover:bg-rose-50" title="Удалить запись">
                     <i class="bi bi-x-lg"></i>
                   </button>
                 </form>
@@ -257,7 +262,7 @@
           <div class="border-t pt-3">
             <p class="text-xs text-gray-500 mb-1">Тренер</p>
             <div class="flex items-center gap-2">
-              <img src="{{ url_for('serve_uploaded_file', filename=group.trainer.avatar) if group.trainer and group.trainer.avatar else url_for('static','default-avatar.png') }}"
+              <img src="{{ url_for('serve_uploaded_file', filename=group.trainer.avatar) if group.trainer and group.trainer.avatar else url_for('static', filename='default-avatar.png') }}"
                    class="w-8 h-8 rounded-full object-cover" alt="Тренер">
               <span class="text-sm font-semibold text-gray-800">{{ group.trainer.name if group.trainer else '—' }}</span>
             </div>
@@ -376,8 +381,7 @@
     <form id="chat-form" action="{{ url_for('post_group_image_message', group_id=group.id) }}" method="POST" enctype="multipart/form-data">
       <div class="flex items-center border border-gray-300 rounded-lg shadow-sm focus-within:ring-1 focus-within:ring-indigo-500">
         <textarea name="text" rows="1" placeholder="Сообщение…" class="flex-1 p-2 rounded-l-lg bg-transparent focus:outline-none text-sm resize-none"></textarea>
-        <button type="button" onclick="document.getElementById('image-upload-widget').click()"
-                class="p-2 text-gray-500 hover:text-indigo-600">
+        <button type="button" onclick="document.getElementById('image-upload-widget').click()" class="p-2 text-gray-500 hover:text-indigo-600">
           <i class="fas fa-paperclip text-base"></i>
         </button>
         <input id="image-upload-widget" type="file" name="image" class="hidden" accept="image/*">
@@ -394,30 +398,85 @@
 </div>
 
 <script>
-/* -------- лайки сообщений -------- */
+/* ---------- утилита экранирования ---------- */
+function escapeHtml(s){
+  return String(s || '').replace(/[&<>"']/g, m => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]
+  ));
+}
+
+/* ---------- реакции (появляются только если >0) ---------- */
 function likeMessage(messageId) {
-  fetch(`/group_message/${messageId}/react`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }})
+  fetch(`/group_message/${messageId}/react`, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} })
     .then(r => r.json())
     .then(d => {
       if (!d.success) return;
+
       const root = document.querySelector(`#message-${messageId}`);
-      if(!root) return;
-      const badge = root.querySelector('.reaction-display');
-      const count = root.querySelector('.reaction-count');
-      const icon = root.querySelector('.reaction-icon');
-      if (badge && count) {
-        if (d.new_like_count > 0) {
-          badge.classList.remove('hidden');
-          count.textContent = d.new_like_count;
-        } else {
-          badge.classList.add('hidden');
+      if (!root) return;
+
+      let badge = root.querySelector('.reaction-display');
+      const column = root.querySelector('.msg-wrap .flex.flex-col');
+
+      if (d.new_like_count > 0) {
+        if (!badge && column) {
+          column.insertAdjacentHTML('beforeend', `
+            <div class="reaction-display mt-1 self-end">
+              <div class="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs text-gray-600 flex items-center select-none">
+                <span class="reaction-icon text-red-500">👍</span>
+                <span class="reaction-count ml-0.5">${d.new_like_count}</span>
+              </div>
+            </div>
+          `);
+        } else if (badge) {
+          const countEl = badge.querySelector('.reaction-count');
+          const iconEl = badge.querySelector('.reaction-icon');
+          if (countEl) countEl.textContent = d.new_like_count;
+          if (iconEl) iconEl.classList.add('text-red-500');
         }
+      } else {
+        if (badge) badge.remove();
       }
-      if (icon) icon.classList.toggle('text-red-500', d.user_reacted);
     });
 }
 
-/* -------- лента: фильтры и поиск -------- */
+/* ---------- рендер сообщения ---------- */
+function renderMessage(msg, last) {
+  const changeUser = !last || last.user.name !== msg.user.name || last.is_current_user !== msg.is_current_user;
+  const showAvatar = changeUser;
+  const justify = msg.is_current_user ? 'justify-end' : 'justify-start';
+  const rowDir = msg.is_current_user ? 'flex-row-reverse' : '';
+
+  const reactionHtml = (msg.reactions_count > 0) ? `
+    <div class="reaction-display mt-1 self-end">
+      <div class="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs text-gray-600 flex items-center select-none">
+        <span class="reaction-icon ${msg.current_user_reacted ? 'text-red-500' : ''}">👍</span>
+        <span class="reaction-count ml-0.5">${msg.reactions_count}</span>
+      </div>
+    </div>` : '';
+
+  const contentHtml = msg.image_url
+    ? `<div class="rounded-xl overflow-hidden shadow-md cursor-zoom-in" onclick="openLightbox('${msg.image_url}')">
+         <img src="${msg.image_url}" class="chat-img">
+       </div>`
+    : `<div class="chat-bubble ${msg.is_current_user ? 'chat-bubble-me' : 'chat-bubble-other'}">${escapeHtml(msg.text)}</div>`;
+
+  return `
+    <div id="message-${msg.id}" class="w-full flex ${justify}">
+      <div ondblclick="likeMessage(${msg.id})" class="msg-wrap flex items-end gap-1.5 group relative ${rowDir}">
+        <div class="w-6 h-6 flex-shrink-0">
+          ${showAvatar ? `<img src="${msg.user.avatar_url}" class="w-full h-full rounded-full object-cover">` : ''}
+        </div>
+        <div class="flex flex-col ${msg.is_current_user ? 'items-end' : 'items-start'}">
+          ${(showAvatar && !msg.is_current_user) ? `<span class="text-[11px] text-gray-500 ml-2 mb-0.5">${escapeHtml(msg.user.name)}</span>` : ''}
+          ${contentHtml}
+          ${reactionHtml}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ---------- Лента: фильтры и поиск ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   const feed = document.getElementById('feed');
   const tabs = document.querySelectorAll('.tab-btn');
@@ -447,50 +506,12 @@ document.addEventListener('DOMContentLoaded', () => {
   applyFilter();
 });
 
-/* -------- чат -------- */
+/* ---------- Чат ---------- */
 document.addEventListener('DOMContentLoaded', function() {
   const groupId = {{ group.id }};
   let polling = null;
   const messagesEl = document.getElementById('chat-messages-container');
   const chatForm = document.getElementById('chat-form');
-
-  function renderMessage(msg, last) {
-    const changeUser = !last || last.user.name !== msg.user.name || last.is_current_user !== msg.is_current_user;
-    const showAvatar = changeUser;
-    const justify = msg.is_current_user ? 'justify-end' : 'justify-start';
-    const rowDir = msg.is_current_user ? 'flex-row-reverse' : '';
-    const iconLiked = msg.current_user_reacted ? 'text-red-500' : '';
-    const reactionHidden = msg.reactions_count > 0 ? '' : 'hidden';
-
-    return `
-      <div id="message-${msg.id}" class="w-full flex ${justify}">
-        <div ondblclick="likeMessage(${msg.id})" class="flex items-end gap-1.5 max-w-[90%] group relative ${rowDir}">
-          <div class="w-6 h-6 flex-shrink-0">
-            ${showAvatar ? `<img src="${msg.user.avatar_url}" class="w-full h-full rounded-full object-cover">` : ''}
-          </div>
-          <div class="flex flex-col ${msg.is_current_user ? 'items-end' : 'items-start'}">
-            ${(showAvatar && !msg.is_current_user) ? `<span class="text-[11px] text-gray-500 ml-2 mb-0.5">${msg.user.name}</span>` : ''}
-
-            ${msg.image_url ? `
-              <div class="rounded-xl overflow-hidden shadow-md cursor-zoom-in" onclick="openLightbox('${msg.image_url}')">
-                <img src="${msg.image_url}" class="max-w-xs max-h-64 object-cover">
-              </div>
-            ` : `
-              <div class="chat-bubble ${msg.is_current_user ? 'chat-bubble-me' : 'chat-bubble-other'}">
-                ${msg.text}
-              </div>
-            `}
-
-            <div class="reaction-display mt-1 self-end ${reactionHidden}">
-              <div class="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm text-xs text-gray-600 flex items-center">
-                <span class="reaction-icon ${iconLiked}">👍</span>
-                <span class="reaction-count ml-0.5">${msg.reactions_count}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
 
   function refreshMessages() {
     fetch(`/api/groups/${groupId}/messages`)
